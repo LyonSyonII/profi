@@ -89,16 +89,10 @@
 //! ```
 #![allow(clippy::needless_doctest_main)]
 
-#[cfg(not(feature = "enable"))]
-struct GlobalProfiler;
-
 #[cfg(feature = "enable")]
 struct GlobalProfiler {
     timings: once_cell::sync::Lazy<dashmap::DashMap<&'static str, Vec<std::time::Duration>>>,
 }
-
-#[cfg(not(feature = "enable"))]
-static GLOBAL_PROFILER: GlobalProfiler = GlobalProfiler;
 
 #[cfg(feature = "enable")]
 static GLOBAL_PROFILER: GlobalProfiler = GlobalProfiler {
@@ -109,19 +103,25 @@ static GLOBAL_PROFILER: GlobalProfiler = GlobalProfiler {
 ///
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
 pub fn print_timings() -> std::io::Result<()> {
-    GLOBAL_PROFILER.print_timings(&mut std::io::stdout().lock())
+    #[cfg(feature = "enable")]
+    GLOBAL_PROFILER.print_timings(&mut std::io::stdout().lock())?;
+    Ok(())
 }
 /// Prints the profiled timings to stderr.
 ///
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
 pub fn eprint_timings() -> std::io::Result<()> {
-    GLOBAL_PROFILER.print_timings(&mut std::io::stderr())
+    #[cfg(feature = "enable")]
+    GLOBAL_PROFILER.print_timings(&mut std::io::stderr())?;
+    Ok(())
 }
 /// Prints the profiled timings to the provided [`std::io::Write`].
 ///
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
 pub fn print_timings_to(to: &mut impl std::io::Write) -> std::io::Result<()> {
-    GLOBAL_PROFILER.print_timings(to)
+    #[cfg(feature = "enable")]
+    GLOBAL_PROFILER.print_timings(to)?;
+    Ok(())
 }
 
 #[cfg(feature = "enable")]
@@ -151,8 +151,8 @@ struct Timing {
     calls: usize,
 }
 
+#[cfg(feature = "enable")]
 impl GlobalProfiler {
-    #[cfg(feature = "enable")]
     fn print_timings(&self, to: &mut impl std::io::Write) -> std::io::Result<()> {
         use cli_table::WithTitle;
 
@@ -181,34 +181,29 @@ impl GlobalProfiler {
 
         write!(to, "{}", timings.with_title().display()?)
     }
-    #[cfg(not(feature = "enable"))]
-    #[inline(always)]
-    pub fn print_timings(&self, to: &mut impl std::io::Write) -> std::io::Result<()> {
-        Ok(())
-    }
 }
 
-#[cfg(feature = "enable")]
+/// A guard that records the time from its instantiation to being dropped.
+/// 
+/// Should not be used directly, use the [`prof!`] macro instead.
 pub struct LocalProfilerGuard {
+    #[cfg(feature = "enable")]
     name: &'static str,
+    #[cfg(feature = "enable")]
     start: std::time::Instant,
 }
 
-#[cfg(not(feature = "enable"))]
-pub struct LocalProfilerGuard;
-
 impl LocalProfilerGuard {
-    #[cfg(feature = "enable")]
+    /// Creates a new `LocalProfilerGuard` with the given name.
+    /// 
+    /// Should not be used directly, use the [`prof!`] macro instead.
     pub fn new(name: &'static str) -> Self {
         Self {
+            #[cfg(feature = "enable")]
             name,
+            #[cfg(feature = "enable")]
             start: std::time::Instant::now(),
         }
-    }
-    #[cfg(not(feature = "enable"))]
-    #[inline(always)]
-    pub fn new(name: &'static str) -> Self {
-        Self
     }
     /// Stops the profiling early.
     ///
@@ -270,25 +265,14 @@ impl Drop for LocalProfilerGuard {
 ///   _guard.stop();
 /// }
 /// ```
-#[cfg(feature = "enable")]
 #[macro_export]
 macro_rules! prof {
     ($name:ident) => {
+        #[cfg(feature = "enable")]
         let _guard = $crate::LocalProfilerGuard::new(stringify!($name));
     };
     ($name:literal) => {
         $crate::LocalProfilerGuard::new($name)
-    };
-}
-
-#[cfg(not(feature = "enable"))]
-#[macro_export]
-macro_rules! prof {
-    ($name:ident) => {
-        let _guard = $crate::LocalProfilerGuard;
-    };
-    ($name:literal) => {
-        $crate::LocalProfilerGuard
     };
 }
 
@@ -320,36 +304,27 @@ macro_rules! prof {
 /// }
 /// ```
 #[allow(clippy::needless_doctest_main)]
-#[cfg(feature = "enable")]
 #[macro_export]
 macro_rules! print_on_exit {
     () => {
-        struct Drop;
-        impl std::ops::Drop for Drop {
-            fn drop(&mut self) {
-                $crate::print_timings().unwrap();
-            }
-        }
-        let _guard = Drop;
+        print_on_exit!(stdout)
     };
     (stdout) => {
-        print_on_exit!();
+        print_on_exit!(to = || std::io::stdout())
     };
     (stderr) => {
-        struct Drop;
-        impl std::ops::Drop for Drop {
+        print_on_exit!(to = || std::io::stderr())
+    };
+    (to = $to:expr) => {
+        #[cfg(feature = "enable")]
+        struct MiniprofDrop<W: std::io::Write, F: Fn() -> W>(F);
+        #[cfg(feature = "enable")]
+        impl<W: std::io::Write, F: Fn() -> W> std::ops::Drop for MiniprofDrop<W, F> {
             fn drop(&mut self) {
-                $crate::eprint_timings().unwrap();
+                $crate::print_timings_to(&mut (self.0)()).unwrap();
             }
         }
-        let _guard = Drop;
+        #[cfg(feature = "enable")]
+        let _guard = MiniprofDrop($to);
     };
-}
-
-#[cfg(not(feature = "enable"))]
-#[macro_export]
-macro_rules! print_on_exit {
-    () => {};
-    (stdout) => {};
-    (stderr) => {};
 }
