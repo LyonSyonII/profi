@@ -5,6 +5,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+dashmap = { version = "5.5.3", features = ["inline"] }
+once_cell = "1.19.0"
 
 [profile.dev]
 debug = 0
