@@ -1,4 +1,5 @@
 cargo-features = ["codegen-backend"]
+
 [package]
 name = "miniprof"
 version = "0.1.0"
@@ -12,9 +13,6 @@ once_cell = { version = "1.19.0", default-features = false, optional = true }
 [profile.dev]
 debug = 0
 codegen-backend = "cranelift"
-
-[profile.release]
-
 
 [features]
 default = ["enable"]
