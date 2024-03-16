@@ -102,6 +102,7 @@ static GLOBAL_PROFILER: GlobalProfiler = GlobalProfiler {
 /// Prints the profiled timings to stdout.
 ///
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
+#[inline(always)]
 pub fn print_timings() -> std::io::Result<()> {
     #[cfg(feature = "enable")]
     GLOBAL_PROFILER.print_timings(&mut std::io::stdout().lock())?;
@@ -110,6 +111,7 @@ pub fn print_timings() -> std::io::Result<()> {
 /// Prints the profiled timings to stderr.
 ///
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
+#[inline(always)]
 pub fn eprint_timings() -> std::io::Result<()> {
     #[cfg(feature = "enable")]
     GLOBAL_PROFILER.print_timings(&mut std::io::stderr())?;
@@ -118,6 +120,7 @@ pub fn eprint_timings() -> std::io::Result<()> {
 /// Prints the profiled timings to the provided [`std::io::Write`].
 ///
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
+#[inline(always)]
 pub fn print_timings_to(to: &mut impl std::io::Write) -> std::io::Result<()> {
     #[cfg(feature = "enable")]
     GLOBAL_PROFILER.print_timings(to)?;
@@ -125,11 +128,13 @@ pub fn print_timings_to(to: &mut impl std::io::Write) -> std::io::Result<()> {
 }
 
 #[cfg(feature = "enable")]
+#[inline(always)]
 fn display_percent(f: &f64) -> String {
     format!("{:.2}%", f)
 }
 
 #[cfg(feature = "enable")]
+#[inline(always)]
 fn display_duration(d: &std::time::Duration) -> String {
     format!("{:.2?}/call", d)
 }
@@ -197,6 +202,7 @@ impl LocalProfilerGuard {
     /// Creates a new `LocalProfilerGuard` with the given name.
     /// 
     /// Should not be used directly, use the [`prof!`] macro instead.
+    #[inline(always)]
     pub fn new(name: &'static str) -> Self {
         Self {
             #[cfg(feature = "enable")]
@@ -220,7 +226,6 @@ impl LocalProfilerGuard {
     /// }
     /// ```
     #[allow(clippy::needless_doctest_main)]
-    #[inline(always)]
     pub fn stop(self) {
         #[cfg(feature = "enable")]
         {
