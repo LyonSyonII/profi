@@ -1,2 +1,2 @@
 [build]
-rustflags = ["-Clink-arg=-fuse-ld=mold", "-Zthreads=12"]
+rustflags = ["-Clink-arg=-fuse-ld=mold", "-Zthreads=12", "-Ctarget-cpu=native"]

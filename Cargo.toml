@@ -5,9 +5,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-dashmap = { version = "5.5.3", features = ["inline"] }
-once_cell = "1.19.0"
+cli-table = { version = "0.4.7", features = ["derive"], default-features = false, optional = true }
+dashmap = { version = "5.5.3", features = ["inline"], default-features = false, optional = true }
+once_cell = { version = "1.19.0", default-features = false, optional = true }
 
 [profile.dev]
 debug = 0
 codegen-backend = "cranelift"
+
+[profile.release]
+
+
+[features]
+default = ["enable"]
+enable = ["cli-table", "dashmap", "once_cell"]
