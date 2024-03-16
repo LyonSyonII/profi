@@ -1,7 +1,10 @@
 //! A simple, multithreaded profiler for Rust.
 //!
-//! Record the time it takes for a scope to end and print the timings to stdout or stderr when the program exits.
-//!
+//! Records the time it takes for a scope to end and print the timings to stdout or stderr when the program exits.
+//! 
+//! Set the `enable` feature to use the profiler.  
+//! If the feature is not enabled, all macros and methods will be no-ops and the timings will not be recorded.  
+//! You can disable the feature adding `default-features = false` to the `miniprof` dependency in your `Cargo.toml`.
 //!
 //! # Examples
 //!
@@ -52,7 +55,7 @@
 //! Works as expected when using multiple threads:
 //! ```rust
 //! use miniprof::{print_on_exit, prof};
-//! 
+//!
 //! fn main() {
 //!   print_on_exit!();
 //!   
