@@ -1,7 +1,7 @@
 //! A simple, multithreaded profiler for Rust.
 //!
 //! Records the time it takes for a scope to end and print the timings to stdout or stderr when the program exits.
-//! 
+//!
 //! Set the `enable` feature to use the profiler.  
 //! If the feature is not enabled, all macros and methods will be no-ops and the timings will not be recorded.  
 //! You can disable the feature adding `default-features = false` to the `miniprof` dependency in your `Cargo.toml`.
@@ -89,15 +89,263 @@
 //! ```
 #![allow(clippy::needless_doctest_main)]
 
-#[cfg(feature = "enable")]
-struct GlobalProfiler {
-    timings: once_cell::sync::Lazy<dashmap::DashMap<&'static str, Vec<std::time::Duration>>>,
-}
+use std::{cell::RefCell, rc::Rc};
+
+use cli_table::WithTitle;
 
 #[cfg(feature = "enable")]
-static GLOBAL_PROFILER: GlobalProfiler = GlobalProfiler {
-    timings: once_cell::sync::Lazy::new(dashmap::DashMap::new),
-};
+#[derive(cli_table::Table, Debug, Clone)]
+struct Timing {
+    #[table(title = "Name")]
+    name: String,
+    #[table(title = "% Real Time", display_fn = "display_percent")]
+    percent_real: f64,
+    #[table(title = "Real Time", display_fn = "display_total")]
+    total_real: std::time::Duration,
+    #[table(title = "% CPU Time", display_fn = "display_percent")]
+    percent_cpu: f64,
+    #[table(title = "CPU Time", display_fn = "display_total")]
+    total_cpu: std::time::Duration,
+    #[table(
+        title = "Average time",
+        justify = "cli_table::format::Justify::Right",
+        display_fn = "display_calls"
+    )]
+    average: std::time::Duration,
+    #[table(title = "Calls", justify = "cli_table::format::Justify::Right")]
+    calls: usize,
+}
+
+impl Timing {
+    fn from_durations(
+        name: &str,
+        timings: &[std::time::Duration],
+        total: std::time::Duration,
+    ) -> Self {
+        let sum = timings.iter().sum::<std::time::Duration>();
+        let percent = (sum.as_secs_f64() / total.as_secs_f64()) * 100.0;
+        let average = sum / timings.len() as u32;
+        Self {
+            name: name.to_string(),
+            percent_real: percent,
+            total_real: sum,
+            percent_cpu: percent,
+            total_cpu: sum,
+            average,
+            calls: timings.len(),
+        }
+    }
+    fn merge(&mut self, other: &Timing) {
+        self.average = (self.average + other.average) / 2;
+        self.calls += other.calls;
+        self.total_cpu += other.total_cpu;
+    }
+    fn update_percent(&mut self, total_real: std::time::Duration, total_cpu: std::time::Duration) {
+        self.percent_real = (self.total_real.as_secs_f64() / total_real.as_secs_f64()) * 100.;
+        self.percent_cpu = (self.total_cpu.as_secs_f64() / total_cpu.as_secs_f64()) * 100.;
+    }
+}
+
+#[derive(Debug)]
+struct GlobalProfiler {
+    threads: std::sync::Mutex<usize>,
+    cvar: std::sync::Condvar,
+    timings: std::sync::RwLock<Vec<Vec<Timing>>>,
+}
+
+#[derive(Debug)]
+struct ThreadProfiler {
+    scopes: Vec<Rc<RefCell<ScopeProfiler>>>,
+    current: Option<Rc<RefCell<ScopeProfiler>>>,
+}
+
+#[derive(Debug)]
+struct ScopeProfiler {
+    name: &'static str,
+    timings: Vec<std::time::Duration>,
+    parent: Option<Rc<RefCell<ScopeProfiler>>>,
+    children: Vec<Rc<RefCell<ScopeProfiler>>>,
+}
+
+#[derive(Debug)]
+pub struct ScopeGuard {
+    instant: std::time::Instant,
+}
+
+static GLOBAL_PROFILER: GlobalProfiler = GlobalProfiler::new();
+
+thread_local! {
+    static THREAD_PROFILER: RefCell<ThreadProfiler> = RefCell::new(ThreadProfiler::new());
+}
+
+impl GlobalProfiler {
+    const fn new() -> Self {
+        Self {
+            timings: std::sync::RwLock::new(Vec::new()),
+            threads: std::sync::Mutex::new(0),
+            cvar: std::sync::Condvar::new()
+        }
+    }
+
+    fn print_timings(&self, to: &mut impl std::io::Write) -> std::io::Result<()> {
+        let mut local_timing = THREAD_PROFILER.with_borrow(|thread| thread.to_timings());
+        let timings = &self.timings.read().unwrap();
+        for thread in timings.iter() {
+            for timing in thread {
+                if let Some(t) = local_timing.iter_mut().find(|t| t.name == timing.name) {
+                    t.merge(timing);
+                } else {
+                    local_timing.push(timing.clone());
+                }
+            }
+        }
+        let (total_real, total_cpu) = local_timing
+            .iter()
+            .map(|t| (t.total_real, t.total_cpu))
+            .fold(
+                (Default::default(), Default::default()),
+                |(acc_r, acc_c): (std::time::Duration, _), (r, c)| (acc_r.max(r), acc_c + c),
+            );
+
+        local_timing
+            .iter_mut()
+            .for_each(|t| t.update_percent(total_real, total_cpu));
+        write!(to, "{}", local_timing.with_title().display()?)
+    }
+}
+
+impl ThreadProfiler {
+    fn new() -> Self {
+        *GLOBAL_PROFILER.threads.lock().unwrap() += 1;
+        Self {
+            scopes: Vec::new(),
+            current: None,
+        }
+    }
+
+    fn scope_total(&self) -> std::time::Duration {
+        self.scopes
+            .iter()
+            .map(|s| s.borrow().timings.iter().sum::<std::time::Duration>())
+            .sum()
+    }
+
+    fn total(&self) -> std::time::Duration {
+        self.scopes.iter().map(|s| s.borrow().total()).sum()
+    }
+
+    fn to_timings(&self) -> Vec<Timing> {
+        let total = self.total();
+        self.scopes
+            .iter()
+            .flat_map(|scope| scope.borrow().to_timings(total))
+            .collect()
+    }
+
+    fn push(&mut self, name: &'static str) {
+        let node = if let Some(current) = &self.current {
+            let mut current_mut = current.borrow_mut();
+            if let Some(scope) = current_mut
+                .children
+                .iter()
+                .find(|s| s.borrow().name == name)
+            {
+                scope.clone()
+            } else {
+                // Create new scope with 'current' as parent
+                let scope = ScopeProfiler::new(name, Some(current.clone()));
+                // Update current scope's children
+                current_mut.children.push(scope.clone());
+                scope
+            }
+        } else if let Some(scope) = self.scopes.iter().find(|s| RefCell::borrow(s).name == name) {
+            scope.clone()
+        } else {
+            let scope = ScopeProfiler::new(name, None);
+            self.scopes.push(scope.clone());
+            scope
+        };
+        // Update current to new scope
+        self.current = Some(node);
+    }
+
+    fn pop(&mut self, duration: std::time::Duration) {
+        let Some(current) = &self.current else {
+            panic!("[miniprof] 'pop' called and 'current' is 'None', this should never happen!")
+        };
+        RefCell::borrow_mut(current).timings.push(duration);
+        let parent = current.borrow().parent.clone();
+        self.current = parent;
+    }
+}
+
+impl ScopeProfiler {
+    fn new(name: &'static str, parent: Option<Rc<RefCell<ScopeProfiler>>>) -> Rc<RefCell<Self>> {
+        let s = Self {
+            name,
+            parent,
+            timings: Vec::new(),
+            children: Vec::new(),
+        };
+        Rc::new(RefCell::new(s))
+    }
+    fn to_timings(&self, total: std::time::Duration) -> Vec<Timing> {
+        let timing = Timing::from_durations(self.name, &self.timings, total);
+        std::iter::once(timing)
+            .chain(
+                self.children
+                    .iter()
+                    .flat_map(|child| child.borrow().to_timings(total)),
+            )
+            .collect()
+    }
+    fn total(&self) -> std::time::Duration {
+        self.timings.iter().sum::<std::time::Duration>()
+            + self.children.iter().map(|c| c.borrow().total()).sum()
+    }
+}
+
+impl ScopeGuard {
+    pub fn new(name: &'static str) -> Self {
+        THREAD_PROFILER.with_borrow_mut(|thread| thread.push(name));
+        Self {
+            instant: std::time::Instant::now(),
+        }
+    }
+}
+
+impl Drop for ThreadProfiler {
+    fn drop(&mut self) {
+        if !self.scopes.is_empty() {
+            let timings = self.to_timings();
+            GLOBAL_PROFILER.timings.write().unwrap().push(timings);
+        }
+        *GLOBAL_PROFILER.threads.lock().unwrap() -= 1;
+        GLOBAL_PROFILER.cvar.notify_one()
+    }
+}
+
+impl Drop for ScopeGuard {
+    fn drop(&mut self) {
+        THREAD_PROFILER.with_borrow_mut(|thread| {
+            thread.pop(self.instant.elapsed());
+        })
+    }
+}
+
+/// Blocks until all threads are dropped.
+/// 
+/// Must be used on [`print_on_exit!`] because sometimes the threads will drop *after* the main one, corrupting the results.
+/// 
+/// Will be applied automatically on `print_on_exit!`, should not be used on its own.
+#[inline(always)]
+pub fn block_until_exited() {
+    // Wait for all threads to finish
+    let mut threads = GLOBAL_PROFILER.threads.lock().unwrap();
+    while *threads > 1 {
+        threads = GLOBAL_PROFILER.cvar.wait(threads).unwrap();
+    }
+}
 
 /// Prints the profiled timings to stdout.
 ///
@@ -122,6 +370,7 @@ pub fn eprint_timings() -> std::io::Result<()> {
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
 #[inline(always)]
 pub fn print_timings_to(to: &mut impl std::io::Write) -> std::io::Result<()> {
+    std::thread::sleep(std::time::Duration::from_millis(500));
     #[cfg(feature = "enable")]
     GLOBAL_PROFILER.print_timings(to)?;
     Ok(())
@@ -135,119 +384,14 @@ fn display_percent(f: &f64) -> String {
 
 #[cfg(feature = "enable")]
 #[inline(always)]
-fn display_duration(d: &std::time::Duration) -> String {
+fn display_calls(d: &std::time::Duration) -> String {
     format!("{:.2?}/call", d)
 }
 
 #[cfg(feature = "enable")]
-#[derive(cli_table::Table)]
-struct Timing {
-    #[table(title = "Name")]
-    name: String,
-    #[table(title = "% of total time", display_fn = "display_percent")]
-    percent: f64,
-    #[table(
-        title = "Average time",
-        justify = "cli_table::format::Justify::Right",
-        display_fn = "display_duration"
-    )]
-    average: std::time::Duration,
-    #[table(title = "Calls", justify = "cli_table::format::Justify::Right")]
-    calls: usize,
-}
-
-#[cfg(feature = "enable")]
-impl GlobalProfiler {
-    fn print_timings(&self, to: &mut impl std::io::Write) -> std::io::Result<()> {
-        use cli_table::WithTitle;
-
-        let timings = &self.timings;
-        let total: std::time::Duration = timings
-            .iter()
-            .map(|r| r.value().iter().sum::<std::time::Duration>())
-            .sum();
-        let mut timings = self
-            .timings
-            .iter()
-            .map(|r| {
-                let (name, timings) = r.pair();
-                let sum = timings.iter().sum::<std::time::Duration>();
-                let percent = (sum.as_secs_f64() / total.as_secs_f64()) * 100.0;
-                let average = sum / timings.len() as u32;
-                Timing {
-                    name: name.to_string(),
-                    percent,
-                    average,
-                    calls: timings.len(),
-                }
-            })
-            .collect::<Vec<_>>();
-        timings.sort_unstable_by(|a, b| b.percent.partial_cmp(&a.percent).unwrap());
-
-        write!(to, "{}", timings.with_title().display()?)
-    }
-}
-
-/// A guard that records the time from its instantiation to being dropped.
-/// 
-/// Should not be used directly, use the [`prof!`] macro instead.
-pub struct LocalProfilerGuard {
-    #[cfg(feature = "enable")]
-    name: &'static str,
-    #[cfg(feature = "enable")]
-    start: std::time::Instant,
-}
-
-impl LocalProfilerGuard {
-    /// Creates a new `LocalProfilerGuard` with the given name.
-    /// 
-    /// Should not be used directly, use the [`prof!`] macro instead.
-    #[inline(always)]
-    pub fn new(name: &'static str) -> Self {
-        Self {
-            #[cfg(feature = "enable")]
-            name,
-            #[cfg(feature = "enable")]
-            start: std::time::Instant::now(),
-        }
-    }
-    /// Stops the profiling early.
-    ///
-    /// Useful to avoid profiling the entire scope.
-    ///
-    /// # Examples
-    /// ```
-    /// use miniprof::{prof, print_on_exit};
-    ///
-    /// fn main() {
-    ///   let _guard = prof!("sleep2");
-    ///   std::thread::sleep(std::time::Duration::from_millis(100));
-    ///   _guard.stop();
-    /// }
-    /// ```
-    #[allow(clippy::needless_doctest_main)]
-    pub fn stop(self) {
-        #[cfg(feature = "enable")]
-        {
-            GLOBAL_PROFILER
-                .timings
-                .entry(self.name)
-                .or_default()
-                .push(self.start.elapsed());
-            std::mem::forget(self);
-        }
-    }
-}
-
-#[cfg(feature = "enable")]
-impl Drop for LocalProfilerGuard {
-    fn drop(&mut self) {
-        GLOBAL_PROFILER
-            .timings
-            .entry(self.name)
-            .or_default()
-            .push(self.start.elapsed());
-    }
+#[inline(always)]
+fn display_total(d: &std::time::Duration) -> String {
+    format!("{:.2?}", d)
 }
 
 /// Profiles the time it takes for the scope to end.
@@ -274,16 +418,16 @@ impl Drop for LocalProfilerGuard {
 macro_rules! prof {
     ($name:ident) => {
         #[cfg(feature = "enable")]
-        let _guard = $crate::LocalProfilerGuard::new(stringify!($name));
+        let _guard = $crate::ScopeGuard::new(stringify!($name));
     };
     ($name:literal) => {
-        $crate::LocalProfilerGuard::new($name)
+        $crate::ScopeGuard::new($name)
     };
 }
 
-/// Prints the profiled timings to stdout when the function exits.
+/// Prints the profiled timings to stdout when the `main` exits.
 ///
-/// **Always put at the top of the function to ensure it's dropped last.**
+/// **Always put at the top of `main` to ensure it's dropped last.**
 ///
 /// If you want to print to stderr instead, use `print_on_exit!(stderr)`.
 ///
@@ -326,6 +470,7 @@ macro_rules! print_on_exit {
         #[cfg(feature = "enable")]
         impl<W: std::io::Write, F: Fn() -> W> std::ops::Drop for MiniprofDrop<W, F> {
             fn drop(&mut self) {
+                $crate::block_until_exited();
                 $crate::print_timings_to(&mut (self.0)()).unwrap();
             }
         }

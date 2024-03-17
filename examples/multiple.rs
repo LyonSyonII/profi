@@ -11,14 +11,19 @@ fn main() {
     print_on_exit!();
 
     // The `prof!` macro creates a guard that records the time until it goes out of scope
-    prof!(main);
+    let _main = prof!("main");
 
     // Sleep for a bit to simulate some work
     std::thread::sleep(std::time::Duration::from_millis(200));
-    
+
     // Call a function that has its own profiling
     wait_for_a_bit();
     wait_for_a_bit();
+
+    drop(_main);
+
+    prof!(main2);
+    std::thread::sleep(std::time::Duration::from_millis(200));
 
     // Total time is calculated by adding up all the time spent in the `prof!` guards
     // This will print something like:

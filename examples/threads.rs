@@ -16,6 +16,8 @@ fn do_work(i: usize) {
 fn main() {
     print_on_exit!();
 
+    prof!(main);
+    
     std::thread::scope(|s| {
         for i in 0..10 {
             s.spawn(move || {
