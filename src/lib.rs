@@ -90,6 +90,8 @@
 #![allow(clippy::needless_doctest_main)]
 #![deny(unsafe_code)]
 
+pub mod private;
+
 use std::{cell::RefCell, rc::Rc};
 
 #[cfg(feature = "enable")]
@@ -217,12 +219,6 @@ struct ScopeProfiler {
     timings: Vec<std::time::Duration>,
     parent: Option<Rc<RefCell<ScopeProfiler>>>,
     children: Vec<Rc<RefCell<ScopeProfiler>>>,
-}
-
-#[cfg_attr(feature = "enable", derive(Debug))]
-pub struct ScopeGuard {
-    #[cfg(feature = "enable")]
-    instant: std::time::Instant,
 }
 
 #[cfg(feature = "enable")]
@@ -374,17 +370,6 @@ impl ScopeProfiler {
     }
 }
 
-impl ScopeGuard {
-    pub fn new(name: &'static str) -> Self {
-        #[cfg(feature = "enable")]
-        THREAD_PROFILER.with_borrow_mut(|thread| thread.push(name));
-        Self {
-            #[cfg(feature = "enable")]
-            instant: std::time::Instant::now(),
-        }
-    }
-}
-
 #[cfg(feature = "enable")]
 impl Drop for ThreadProfiler {
     fn drop(&mut self) {
@@ -394,15 +379,6 @@ impl Drop for ThreadProfiler {
         }
         *GLOBAL_PROFILER.threads.lock().unwrap() -= 1;
         GLOBAL_PROFILER.cvar.notify_one()
-    }
-}
-
-#[cfg(feature = "enable")]
-impl Drop for ScopeGuard {
-    fn drop(&mut self) {
-        THREAD_PROFILER.with_borrow_mut(|thread| {
-            thread.pop(self.instant.elapsed());
-        })
     }
 }
 
@@ -422,37 +398,6 @@ fn block_until_exited() {
     while *threads > 1 {
         threads = GLOBAL_PROFILER.cvar.wait(threads).unwrap();
     }
-}
-
-/// Prints the profiled timings to stdout.
-///
-/// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
-/// 
-/// It's recommended to only use it when all threads have exited and have been joined correctly, or you'll risk corrupt data.
-#[inline(always)]
-pub fn print_timings() -> std::io::Result<()> {
-    #[cfg(feature = "enable")]
-    GLOBAL_PROFILER.print_timings(&mut std::io::stdout().lock())?;
-    Ok(())
-}
-/// Prints the profiled timings to stderr.
-///
-/// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
-#[inline(always)]
-pub fn eprint_timings() -> std::io::Result<()> {
-    #[cfg(feature = "enable")]
-    GLOBAL_PROFILER.print_timings(&mut std::io::stderr())?;
-    Ok(())
-}
-/// Prints the profiled timings to the provided [`std::io::Write`].
-///
-/// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
-#[inline(always)]
-pub fn print_timings_to(to: &mut impl std::io::Write) -> std::io::Result<()> {
-    std::thread::sleep(std::time::Duration::from_millis(500));
-    #[cfg(feature = "enable")]
-    GLOBAL_PROFILER.print_timings(to)?;
-    Ok(())
 }
 
 #[cfg(feature = "enable")]
@@ -496,10 +441,10 @@ fn display_total(d: &std::time::Duration) -> String {
 #[macro_export]
 macro_rules! prof {
     ($name:ident) => {
-        let _guard = $crate::ScopeGuard::new(stringify!($name));
+        let _guard = $crate::private::ScopeGuard::new(stringify!($name));
     };
     ($name:literal) => {
-        $crate::ScopeGuard::new($name)
+        $crate::private::ScopeGuard::new($name)
     };
 }
 
@@ -559,6 +504,6 @@ impl<W: std::io::Write, F: Fn() -> W> MiniprofDrop<W, F> {
 impl<W: std::io::Write, F: Fn() -> W> std::ops::Drop for MiniprofDrop<W, F> {
     fn drop(&mut self) {
         block_until_exited();
-        print_timings_to(&mut (self.0)()).unwrap();
+        crate::private::print_timings_to(&mut (self.0)()).unwrap();
     }
 }
