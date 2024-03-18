@@ -94,27 +94,72 @@ use std::{cell::RefCell, rc::Rc};
 use cli_table::WithTitle;
 
 #[cfg(feature = "enable")]
-#[derive(cli_table::Table, Debug, Clone)]
+#[derive(Debug, Clone)]
 struct Timing {
-    #[table(title = "Name")]
     name: String,
-    #[table(title = "% Real Time", display_fn = "display_percent")]
-    percent_real: f64,
-    #[table(title = "Real Time", display_fn = "display_total")]
+    /// % Application Time
+    percent_app: f64,
+    /// Real Time
     total_real: std::time::Duration,
-    #[table(title = "% CPU Time", display_fn = "display_percent")]
+    /// % CPU Time
     percent_cpu: f64,
-    #[table(title = "CPU Time", display_fn = "display_total")]
+    /// CPU Time
     total_cpu: std::time::Duration,
-    #[table(
-        title = "Average time",
-        justify = "cli_table::format::Justify::Right",
-        display_fn = "display_calls"
-    )]
     average: std::time::Duration,
-    #[table(title = "Calls", justify = "cli_table::format::Justify::Right")]
     calls: usize,
 }
+
+impl ::cli_table::Title for Timing {
+    fn title() -> ::cli_table::RowStruct {
+        let title: ::std::vec::Vec<::cli_table::CellStruct> = ::std::vec![
+            ::cli_table::Style::bold(::cli_table::Cell::cell("Name"), true),
+            ::cli_table::Style::bold(::cli_table::Cell::cell("% Application Time"), true),
+            ::cli_table::Style::bold(::cli_table::Cell::cell("Real Time"), true),
+            ::cli_table::Style::bold(::cli_table::Cell::cell("% CPU Time"), true),
+            ::cli_table::Style::bold(::cli_table::Cell::cell("CPU Time"), true),
+            ::cli_table::Style::bold(::cli_table::Cell::cell("Average time"), true),
+            ::cli_table::Style::bold(::cli_table::Cell::cell("Calls"), true),
+        ];
+        ::cli_table::Row::row(title)
+    }
+}
+
+impl ::cli_table::Row for &Timing {
+    fn row(self) -> ::cli_table::RowStruct {
+        let mut row = vec![
+            ::cli_table::Cell::cell(&self.name),
+            ::cli_table::Cell::cell(display_percent(&self.percent_app)),
+            ::cli_table::Cell::cell(display_total(&self.total_real)),
+        ];
+        if self.total_real != self.total_cpu {
+            row.extend([
+                ::cli_table::Cell::cell(display_percent(&self.percent_cpu)),
+                ::cli_table::Cell::cell(display_total(&self.total_cpu)),
+            ])
+        } else {
+            row.extend([::cli_table::Cell::cell("-"), ::cli_table::Cell::cell("-")])
+        }
+        row.extend([
+            ::cli_table::Cell::cell(display_calls(&self.average))
+                .justify(cli_table::format::Justify::Right),
+            ::cli_table::Cell::cell(self.calls).justify(cli_table::format::Justify::Right),
+        ]);
+        ::cli_table::Row::row(row)
+    }
+}
+
+impl ::cli_table::Row for Timing {
+    fn row(self) -> ::cli_table::RowStruct {
+        #[allow(clippy::needless_borrows_for_generic_args)]
+        ::cli_table::Row::row(&self)
+    }
+}
+
+/* impl cli_table::Table for Timing {
+    fn table(self) -> cli_table::TableStruct {
+
+    }
+} */
 
 impl Timing {
     fn from_durations(
@@ -127,7 +172,7 @@ impl Timing {
         let average = sum / timings.len() as u32;
         Self {
             name: name.to_string(),
-            percent_real: percent,
+            percent_app: percent,
             total_real: sum,
             percent_cpu: percent,
             total_cpu: sum,
@@ -140,8 +185,8 @@ impl Timing {
         self.calls += other.calls;
         self.total_cpu += other.total_cpu;
     }
-    fn update_percent(&mut self, total_real: std::time::Duration, total_cpu: std::time::Duration) {
-        self.percent_real = (self.total_real.as_secs_f64() / total_real.as_secs_f64()) * 100.;
+    fn update_percent(&mut self, total_app: std::time::Duration, total_cpu: std::time::Duration) {
+        self.percent_app = (self.total_real.as_secs_f64() / total_app.as_secs_f64()) * 100.;
         self.percent_cpu = (self.total_cpu.as_secs_f64() / total_cpu.as_secs_f64()) * 100.;
     }
 }
@@ -150,13 +195,15 @@ impl Timing {
 struct GlobalProfiler {
     threads: std::sync::Mutex<usize>,
     cvar: std::sync::Condvar,
-    timings: std::sync::RwLock<Vec<Vec<Timing>>>,
+    timings: std::sync::RwLock<Vec<(std::time::Duration, Vec<Timing>)>>,
 }
 
 #[derive(Debug)]
 struct ThreadProfiler {
     scopes: Vec<Rc<RefCell<ScopeProfiler>>>,
     current: Option<Rc<RefCell<ScopeProfiler>>>,
+    thread_start: std::time::Instant,
+    thread_time: Option<std::time::Duration>
 }
 
 #[derive(Debug)]
@@ -183,14 +230,14 @@ impl GlobalProfiler {
         Self {
             timings: std::sync::RwLock::new(Vec::new()),
             threads: std::sync::Mutex::new(0),
-            cvar: std::sync::Condvar::new()
+            cvar: std::sync::Condvar::new(),
         }
     }
 
     fn print_timings(&self, to: &mut impl std::io::Write) -> std::io::Result<()> {
-        let mut local_timing = THREAD_PROFILER.with_borrow(|thread| thread.to_timings());
+        let (total_app, mut local_timing) = THREAD_PROFILER.with_borrow(|thread| (thread.get_thread_time(), thread.to_timings()));
         let timings = &self.timings.read().unwrap();
-        for thread in timings.iter() {
+        for (thread_total, thread) in timings.iter() {
             for timing in thread {
                 if let Some(t) = local_timing.iter_mut().find(|t| t.name == timing.name) {
                     t.merge(timing);
@@ -199,17 +246,14 @@ impl GlobalProfiler {
                 }
             }
         }
-        let (total_real, total_cpu) = local_timing
+        let total_cpu = local_timing
             .iter()
-            .map(|t| (t.total_real, t.total_cpu))
-            .fold(
-                (Default::default(), Default::default()),
-                |(acc_r, acc_c): (std::time::Duration, _), (r, c)| (acc_r.max(r), acc_c + c),
-            );
+            .map(|t| t.total_cpu)
+            .sum();
 
         local_timing
             .iter_mut()
-            .for_each(|t| t.update_percent(total_real, total_cpu));
+            .for_each(|t| t.update_percent(total_app, total_cpu));
         write!(to, "{}", local_timing.with_title().display()?)
     }
 }
@@ -220,6 +264,19 @@ impl ThreadProfiler {
         Self {
             scopes: Vec::new(),
             current: None,
+            thread_start: std::time::Instant::now(),
+            thread_time: None
+        }
+    }
+
+    fn set_thread_time(&mut self) {
+        self.thread_time.replace(self.thread_start.elapsed());
+    }
+
+    fn get_thread_time(&self) -> std::time::Duration {
+        match self.thread_time {
+            Some(t) => t,
+            None => self.thread_start.elapsed(),
         }
     }
 
@@ -236,10 +293,11 @@ impl ThreadProfiler {
 
     fn to_timings(&self) -> Vec<Timing> {
         let total = self.total();
-        self.scopes
+        let timings = self.scopes
             .iter()
             .flat_map(|scope| scope.borrow().to_timings(total))
-            .collect()
+            .collect();
+        timings
     }
 
     fn push(&mut self, name: &'static str) {
@@ -318,7 +376,7 @@ impl Drop for ThreadProfiler {
     fn drop(&mut self) {
         if !self.scopes.is_empty() {
             let timings = self.to_timings();
-            GLOBAL_PROFILER.timings.write().unwrap().push(timings);
+            GLOBAL_PROFILER.timings.write().unwrap().push((self.thread_start.elapsed(), timings));
         }
         *GLOBAL_PROFILER.threads.lock().unwrap() -= 1;
         GLOBAL_PROFILER.cvar.notify_one()
@@ -334,12 +392,13 @@ impl Drop for ScopeGuard {
 }
 
 /// Blocks until all threads are dropped.
-/// 
+///
 /// Must be used on [`print_on_exit!`] because sometimes the threads will drop *after* the main one, corrupting the results.
-/// 
+///
 /// Will be applied automatically on `print_on_exit!`, should not be used on its own.
 #[inline(always)]
 pub fn block_until_exited() {
+    THREAD_PROFILER.with_borrow_mut(|t| t.set_thread_time());
     // Wait for all threads to finish
     let mut threads = GLOBAL_PROFILER.threads.lock().unwrap();
     while *threads > 1 {
