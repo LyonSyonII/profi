@@ -7,7 +7,7 @@ fn main() {
 
     // The `prof!` macro creates a guard that records the time until it goes out of scope
     prof!(main);
-
+    
     // Sleep for a bit to simulate some work
     std::thread::sleep(std::time::Duration::from_millis(200));
 }

@@ -20,6 +20,8 @@ fn main() {
     wait_for_a_bit();
     wait_for_a_bit();
 
+    drop(_main);
+
     prof!(main2);
     std::thread::sleep(std::time::Duration::from_millis(200));
 

@@ -88,10 +88,9 @@
 //! +-----------------+-----------------+--------------+-------+
 //! ```
 #![allow(clippy::needless_doctest_main)]
+#![deny(unsafe_code)]
 
 use std::{cell::RefCell, rc::Rc};
-
-use cli_table::WithTitle;
 
 #[cfg(feature = "enable")]
 #[derive(Debug, Clone)]
@@ -109,6 +108,7 @@ struct Timing {
     calls: usize,
 }
 
+#[cfg(feature = "enable")]
 impl ::cli_table::Title for Timing {
     fn title() -> ::cli_table::RowStruct {
         let title: ::std::vec::Vec<::cli_table::CellStruct> = ::std::vec![
@@ -124,6 +124,7 @@ impl ::cli_table::Title for Timing {
     }
 }
 
+#[cfg(feature = "enable")]
 impl ::cli_table::Row for &Timing {
     fn row(self) -> ::cli_table::RowStruct {
         let mut row = vec![
@@ -148,6 +149,7 @@ impl ::cli_table::Row for &Timing {
     }
 }
 
+#[cfg(feature = "enable")]
 impl ::cli_table::Row for Timing {
     fn row(self) -> ::cli_table::RowStruct {
         #[allow(clippy::needless_borrows_for_generic_args)]
@@ -161,6 +163,7 @@ impl ::cli_table::Row for Timing {
     }
 } */
 
+#[cfg(feature = "enable")]
 impl Timing {
     fn from_durations(
         name: &str,
@@ -191,6 +194,7 @@ impl Timing {
     }
 }
 
+#[cfg(feature = "enable")]
 #[derive(Debug)]
 struct GlobalProfiler {
     threads: std::sync::Mutex<usize>,
@@ -198,7 +202,7 @@ struct GlobalProfiler {
     timings: std::sync::RwLock<Vec<(std::time::Duration, Vec<Timing>)>>,
 }
 
-#[derive(Debug)]
+#[cfg(feature = "enable")]
 struct ThreadProfiler {
     scopes: Vec<Rc<RefCell<ScopeProfiler>>>,
     current: Option<Rc<RefCell<ScopeProfiler>>>,
@@ -206,6 +210,7 @@ struct ThreadProfiler {
     thread_time: Option<std::time::Duration>
 }
 
+#[cfg(feature = "enable")]
 #[derive(Debug)]
 struct ScopeProfiler {
     name: &'static str,
@@ -214,17 +219,21 @@ struct ScopeProfiler {
     children: Vec<Rc<RefCell<ScopeProfiler>>>,
 }
 
-#[derive(Debug)]
+#[cfg_attr(feature = "enable", derive(Debug))]
 pub struct ScopeGuard {
+    #[cfg(feature = "enable")]
     instant: std::time::Instant,
 }
 
+#[cfg(feature = "enable")]
 static GLOBAL_PROFILER: GlobalProfiler = GlobalProfiler::new();
 
+#[cfg(feature = "enable")]
 thread_local! {
     static THREAD_PROFILER: RefCell<ThreadProfiler> = RefCell::new(ThreadProfiler::new());
 }
 
+#[cfg(feature = "enable")]
 impl GlobalProfiler {
     const fn new() -> Self {
         Self {
@@ -254,10 +263,11 @@ impl GlobalProfiler {
         local_timing
             .iter_mut()
             .for_each(|t| t.update_percent(total_app, total_cpu));
-        write!(to, "{}", local_timing.with_title().display()?)
+        write!(to, "{}", cli_table::WithTitle::with_title(&local_timing).display()?)
     }
 }
 
+#[cfg(feature = "enable")]
 impl ThreadProfiler {
     fn new() -> Self {
         *GLOBAL_PROFILER.threads.lock().unwrap() += 1;
@@ -337,6 +347,7 @@ impl ThreadProfiler {
     }
 }
 
+#[cfg(feature = "enable")]
 impl ScopeProfiler {
     fn new(name: &'static str, parent: Option<Rc<RefCell<ScopeProfiler>>>) -> Rc<RefCell<Self>> {
         let s = Self {
@@ -365,13 +376,16 @@ impl ScopeProfiler {
 
 impl ScopeGuard {
     pub fn new(name: &'static str) -> Self {
+        #[cfg(feature = "enable")]
         THREAD_PROFILER.with_borrow_mut(|thread| thread.push(name));
         Self {
+            #[cfg(feature = "enable")]
             instant: std::time::Instant::now(),
         }
     }
 }
 
+#[cfg(feature = "enable")]
 impl Drop for ThreadProfiler {
     fn drop(&mut self) {
         if !self.scopes.is_empty() {
@@ -383,6 +397,7 @@ impl Drop for ThreadProfiler {
     }
 }
 
+#[cfg(feature = "enable")]
 impl Drop for ScopeGuard {
     fn drop(&mut self) {
         THREAD_PROFILER.with_borrow_mut(|thread| {
@@ -391,16 +406,19 @@ impl Drop for ScopeGuard {
     }
 }
 
+/// **Should not be used on its own, will be applied automatically with `print_on_exit!`.**
+/// 
 /// Blocks until all threads are dropped.
 ///
 /// Must be used on [`print_on_exit!`] because sometimes the threads will drop *after* the main one, corrupting the results.
-///
-/// Will be applied automatically on `print_on_exit!`, should not be used on its own.
 #[inline(always)]
-pub fn block_until_exited() {
+fn block_until_exited() {
+    #[cfg(feature = "enable")]
     THREAD_PROFILER.with_borrow_mut(|t| t.set_thread_time());
     // Wait for all threads to finish
+    #[cfg(feature = "enable")]
     let mut threads = GLOBAL_PROFILER.threads.lock().unwrap();
+    #[cfg(feature = "enable")]
     while *threads > 1 {
         threads = GLOBAL_PROFILER.cvar.wait(threads).unwrap();
     }
@@ -409,6 +427,8 @@ pub fn block_until_exited() {
 /// Prints the profiled timings to stdout.
 ///
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
+/// 
+/// It's recommended to only use it when all threads have exited and have been joined correctly, or you'll risk corrupt data.
 #[inline(always)]
 pub fn print_timings() -> std::io::Result<()> {
     #[cfg(feature = "enable")]
@@ -476,7 +496,6 @@ fn display_total(d: &std::time::Duration) -> String {
 #[macro_export]
 macro_rules! prof {
     ($name:ident) => {
-        #[cfg(feature = "enable")]
         let _guard = $crate::ScopeGuard::new(stringify!($name));
     };
     ($name:literal) => {
@@ -515,25 +534,31 @@ macro_rules! prof {
 #[macro_export]
 macro_rules! print_on_exit {
     () => {
-        print_on_exit!(stdout)
+        $crate::print_on_exit!(stdout)
     };
     (stdout) => {
-        print_on_exit!(to = || std::io::stdout())
+        $crate::print_on_exit!(to = || std::io::stdout())
     };
     (stderr) => {
-        print_on_exit!(to = || std::io::stderr())
+        $crate::print_on_exit!(to = || std::io::stderr())
     };
     (to = $to:expr) => {
-        #[cfg(feature = "enable")]
-        struct MiniprofDrop<W: std::io::Write, F: Fn() -> W>(F);
-        #[cfg(feature = "enable")]
-        impl<W: std::io::Write, F: Fn() -> W> std::ops::Drop for MiniprofDrop<W, F> {
-            fn drop(&mut self) {
-                $crate::block_until_exited();
-                $crate::print_timings_to(&mut (self.0)()).unwrap();
-            }
-        }
-        #[cfg(feature = "enable")]
-        let _guard = MiniprofDrop($to);
+        let _guard = $crate::MiniprofDrop::new($to);
     };
+}
+
+pub struct MiniprofDrop<W: std::io::Write, F: Fn() -> W>(F);
+
+impl<W: std::io::Write, F: Fn() -> W> MiniprofDrop<W, F> {
+    pub fn new(to: F) -> Self {
+        Self(to)
+    }
+}
+
+#[cfg(feature = "enable")]
+impl<W: std::io::Write, F: Fn() -> W> std::ops::Drop for MiniprofDrop<W, F> {
+    fn drop(&mut self) {
+        block_until_exited();
+        print_timings_to(&mut (self.0)()).unwrap();
+    }
 }
