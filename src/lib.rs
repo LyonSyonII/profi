@@ -34,14 +34,15 @@
 //!
 //! Also supports loops or multiple calls to functions:
 //! ```rust
-//! use miniprof::{prof, print_timings};
+//! use miniprof::{prof, print_on_exit};
 //!
 //! fn main() {
+//!   print_on_exit!();
+//! 
 //!   for _ in 0..100 {
 //!       prof!(loop);
 //!       std::thread::sleep(std::time::Duration::from_millis(10));
 //!   }
-//!   print_timings().unwrap();
 //! }
 //! ```
 //! ```plaintext
@@ -90,7 +91,7 @@
 #![allow(clippy::needless_doctest_main)]
 #![deny(unsafe_code)]
 
-pub mod private;
+pub mod zz_private;
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -435,16 +436,16 @@ fn display_total(d: &std::time::Duration) -> String {
 ///   // Bind it to a variable to stop the profiling early
 ///   let _guard = prof!("sleep2");
 ///   std::thread::sleep(std::time::Duration::from_millis(100));
-///   _guard.stop();
+///   drop(_guard);
 /// }
 /// ```
 #[macro_export]
 macro_rules! prof {
     ($name:ident) => {
-        let _guard = $crate::private::ScopeGuard::new(stringify!($name));
+        let _guard = $crate::zz_private::ScopeGuard::new(stringify!($name));
     };
     ($name:literal) => {
-        $crate::private::ScopeGuard::new($name)
+        $crate::zz_private::ScopeGuard::new($name)
     };
 }
 
@@ -452,7 +453,9 @@ macro_rules! prof {
 ///
 /// **Always put at the top of `main` to ensure it's dropped last.**
 ///
-/// If you want to print to stderr instead, use `print_on_exit!(stderr)`.
+/// Print to stderr instead with `print_on_exit!(stderr)`.
+/// 
+/// Or print to a `std::io::Write` with `print_on_exit!(to = || std::io::stdout())`
 ///
 /// # Examples
 /// ```
@@ -471,8 +474,18 @@ macro_rules! prof {
 ///
 /// fn main() {
 ///   print_on_exit!(stderr);
-///   prof!(main);
-///   std::thread::sleep(std::time::Duration::from_millis(200));
+///   // ...
+/// }
+/// ```
+/// 
+/// Print to a file:
+/// ```
+/// use miniprof::{prof, print_on_exit};
+///
+/// fn main() {
+///   let mut file = Vec::<u8>::new();
+///   print_on_exit!(to = &mut file);
+///   // ...
 /// }
 /// ```
 #[allow(clippy::needless_doctest_main)]
@@ -482,12 +495,13 @@ macro_rules! print_on_exit {
         $crate::print_on_exit!(stdout)
     };
     (stdout) => {
-        $crate::print_on_exit!(to = || std::io::stdout())
+        $crate::print_on_exit!(to = std::io::stdout())
     };
     (stderr) => {
-        $crate::print_on_exit!(to = || std::io::stderr())
+        $crate::print_on_exit!(to = std::io::stderr())
     };
     (to = $to:expr) => {
-        let _guard = $crate::private::MiniprofDrop::new($to);
+        let mut _to = $to;
+        let _guard = $crate::zz_private::MiniprofDrop::new(&mut _to);
     };
 }
