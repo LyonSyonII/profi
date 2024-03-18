@@ -488,22 +488,6 @@ macro_rules! print_on_exit {
         $crate::print_on_exit!(to = || std::io::stderr())
     };
     (to = $to:expr) => {
-        let _guard = $crate::MiniprofDrop::new($to);
+        let _guard = $crate::private::MiniprofDrop::new($to);
     };
-}
-
-pub struct MiniprofDrop<W: std::io::Write, F: Fn() -> W>(F);
-
-impl<W: std::io::Write, F: Fn() -> W> MiniprofDrop<W, F> {
-    pub fn new(to: F) -> Self {
-        Self(to)
-    }
-}
-
-#[cfg(feature = "enable")]
-impl<W: std::io::Write, F: Fn() -> W> std::ops::Drop for MiniprofDrop<W, F> {
-    fn drop(&mut self) {
-        block_until_exited();
-        crate::private::print_timings_to(&mut (self.0)()).unwrap();
-    }
 }

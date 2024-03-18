@@ -28,6 +28,22 @@ impl Drop for ScopeGuard {
     }
 }
 
+pub struct MiniprofDrop<W: std::io::Write, F: Fn() -> W>(F);
+
+impl<W: std::io::Write, F: Fn() -> W> MiniprofDrop<W, F> {
+    pub fn new(to: F) -> Self {
+        Self(to)
+    }
+}
+
+#[cfg(feature = "enable")]
+impl<W: std::io::Write, F: Fn() -> W> std::ops::Drop for MiniprofDrop<W, F> {
+    fn drop(&mut self) {
+        crate::block_until_exited();
+        print_timings_to(&mut (self.0)()).unwrap();
+    }
+}
+
 /// Prints the profiled timings to stdout.
 ///
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
