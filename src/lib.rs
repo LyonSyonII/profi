@@ -93,6 +93,7 @@
 
 pub mod zz_private;
 
+#[allow(unused)]
 use std::{cell::RefCell, rc::Rc};
 
 #[cfg(feature = "enable")]
@@ -190,6 +191,7 @@ impl Timing {
         self.average = (self.average + other.average) / 2;
         self.calls += other.calls;
         self.total_cpu += other.total_cpu;
+        self.total_real = self.total_real.max(other.total_real);
     }
     fn update_percent(&mut self, total_app: std::time::Duration, total_cpu: std::time::Duration) {
         self.percent_app = (self.total_real.as_secs_f64() / total_app.as_secs_f64()) * 100.;
@@ -206,6 +208,7 @@ struct GlobalProfiler {
 }
 
 #[cfg(feature = "enable")]
+#[derive(Debug)]
 struct ThreadProfiler {
     scopes: Vec<Rc<RefCell<ScopeProfiler>>>,
     current: Option<Rc<RefCell<ScopeProfiler>>>,
@@ -241,9 +244,10 @@ impl GlobalProfiler {
     }
 
     fn print_timings(&self, to: &mut impl std::io::Write) -> std::io::Result<()> {
-        let (total_app, mut local_timing) = THREAD_PROFILER.with_borrow(|thread| (thread.get_thread_time(), thread.to_timings()));
+        let (mut total_app, mut local_timing) = THREAD_PROFILER.with_borrow(|thread| (thread.get_thread_time(), thread.to_timings()));
         let timings = &self.timings.read().unwrap();
         for (thread_total, thread) in timings.iter() {
+            total_app = std::cmp::max(total_app, *thread_total);
             for timing in thread {
                 if let Some(t) = local_timing.iter_mut().find(|t| t.name == timing.name) {
                     t.merge(timing);
@@ -252,6 +256,7 @@ impl GlobalProfiler {
                 }
             }
         }
+        dbg!(total_app);
         let total_cpu = local_timing
             .iter()
             .map(|t| t.total_cpu)
@@ -274,6 +279,16 @@ impl ThreadProfiler {
             thread_start: std::time::Instant::now(),
             thread_time: None
         }
+    }
+
+    fn manual_drop(&mut self) {
+        self.set_thread_time();
+        if !self.scopes.is_empty() {
+            let timings = self.to_timings();
+            GLOBAL_PROFILER.timings.write().unwrap().push((self.thread_time.unwrap(), timings));
+        }
+        *GLOBAL_PROFILER.threads.lock().unwrap() -= 1;
+        GLOBAL_PROFILER.cvar.notify_one()
     }
 
     fn set_thread_time(&mut self) {
@@ -374,30 +389,8 @@ impl ScopeProfiler {
 #[cfg(feature = "enable")]
 impl Drop for ThreadProfiler {
     fn drop(&mut self) {
-        if !self.scopes.is_empty() {
-            let timings = self.to_timings();
-            GLOBAL_PROFILER.timings.write().unwrap().push((self.thread_start.elapsed(), timings));
-        }
-        *GLOBAL_PROFILER.threads.lock().unwrap() -= 1;
-        GLOBAL_PROFILER.cvar.notify_one()
-    }
-}
-
-/// **Should not be used on its own, will be applied automatically with `print_on_exit!`.**
-/// 
-/// Blocks until all threads are dropped.
-///
-/// Must be used on [`print_on_exit!`] because sometimes the threads will drop *after* the main one, corrupting the results.
-#[inline(always)]
-fn block_until_exited() {
-    #[cfg(feature = "enable")]
-    THREAD_PROFILER.with_borrow_mut(|t| t.set_thread_time());
-    // Wait for all threads to finish
-    #[cfg(feature = "enable")]
-    let mut threads = GLOBAL_PROFILER.threads.lock().unwrap();
-    #[cfg(feature = "enable")]
-    while *threads > 1 {
-        threads = GLOBAL_PROFILER.cvar.wait(threads).unwrap();
+        #[cfg(not(target = "rayon"))]
+        self.manual_drop()
     }
 }
 
