@@ -1,5 +1,5 @@
 //! Contains all macro items, which should not be used by themselves.
-//! 
+//!
 //! Always prefer the macros [`prof!`] and [`print_on_exit!`].
 
 #[cfg_attr(feature = "enable", derive(Debug))]
@@ -14,27 +14,35 @@ pub fn dbg_thread() {
     crate::THREAD_PROFILER.with_borrow(|t| println!("{t:#?}"));
 }
 
+pub fn init_profiler() {
+    #[cfg(feature = "enable")]
+    crate::THREAD_PROFILER.with(|_| ());
+}
+
 #[cfg(feature = "enable")]
 fn drop_threads() {
     #[cfg(feature = "enable")]
     crate::THREAD_PROFILER.with_borrow_mut(|t| t.set_thread_time());
 
-    #[cfg(all(feature = "rayon", feature = "enable"))] {
-        // Drop threads manually, as `rayon` never drops them 
+    #[cfg(all(feature = "rayon", feature = "enable"))]
+    {
+        // Drop threads manually, as `rayon` never drops them
         let current = std::thread::current().id();
-        
-        rayon::broadcast(|t| if std::thread::current().id() != current {
-            crate::THREAD_PROFILER.with_borrow_mut(|t| t.manual_drop())
+
+        rayon::broadcast(|t| {
+            if std::thread::current().id() != current {
+                crate::THREAD_PROFILER.with_borrow_mut(|t| t.manual_drop())
+            }
         });
     }
 }
 
 /// **Should not be used on its own, will be applied automatically with `print_on_exit!`.**
-/// 
+///
 /// Blocks until all threads are dropped.
 ///
 /// Must be used on [`print_on_exit!`] because sometimes the threads will drop *after* the main one, corrupting the results.
-#[cfg(feature = "enable")] 
+#[cfg(feature = "enable")]
 fn block_until_exited() {
     // Wait for all threads to finish
     #[cfg(feature = "enable")]
@@ -57,7 +65,6 @@ impl ScopeGuard {
         }
     }
 }
-
 
 impl Drop for ScopeGuard {
     fn drop(&mut self) {
@@ -89,7 +96,7 @@ impl<'a, W: std::io::Write> std::ops::Drop for MiniprofDrop<'a, W> {
 /// Prints the profiled timings to stdout.
 ///
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
-/// 
+///
 /// It's recommended to only use it when all threads have exited and have been joined correctly, or you'll risk corrupt data.
 #[inline(always)]
 pub fn print_timings() -> std::io::Result<()> {
@@ -100,7 +107,7 @@ pub fn print_timings() -> std::io::Result<()> {
 /// Prints the profiled timings to stderr.
 ///
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
-/// 
+///
 /// It's recommended to only use it when all threads have exited and have been joined correctly, or you'll risk corrupt data.
 #[inline(always)]
 pub fn eprint_timings() -> std::io::Result<()> {
@@ -111,7 +118,7 @@ pub fn eprint_timings() -> std::io::Result<()> {
 /// Prints the profiled timings to the provided [`std::io::Write`].
 ///
 /// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
-/// 
+///
 /// It's recommended to only use it when all threads have exited and have been joined correctly, or you'll risk corrupt data.
 #[inline(always)]
 #[allow(unused)]

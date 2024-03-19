@@ -19,10 +19,10 @@ fn main() {
     // Call a function that has its own profiling
     wait_for_a_bit();
     wait_for_a_bit();
-    
+
     // Drop the `main1` guard
     drop(main1);
-    
+
     // Create a new guard that will end when the program ends
     prof!(main2);
     std::thread::sleep(std::time::Duration::from_millis(200));
@@ -42,7 +42,7 @@ fn main() {
     // +----------------+--------------------+-----------+------------+----------+---------------+-------+
     //
     // Here we can see the implicit `main` guard, along with `main1` and `main2`.
-    // 
-    // The '% Application Time' values do not add up to 100% because the profiling is hierarchical.  
+    //
+    // The '% Application Time' values do not add up to 100% because the profiling is hierarchical.
     // `wait_for_a_bit` is contained in the `main1` scope, so its `33.35%` accounts for the total of that guard.
 }

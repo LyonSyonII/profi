@@ -38,7 +38,7 @@
 //!
 //! fn main() {
 //!   print_on_exit!();
-//! 
+//!
 //!   for _ in 0..100 {
 //!       prof!(loop);
 //!       std::thread::sleep(std::time::Duration::from_millis(10));
@@ -131,6 +131,9 @@ impl ::cli_table::Title for Timing {
 #[cfg(feature = "enable")]
 impl ::cli_table::Row for &Timing {
     fn row(self) -> ::cli_table::RowStruct {
+        use ::cli_table::format::Justify;
+        let empty = || ::cli_table::Cell::cell("-").justify(Justify::Center);
+
         let mut row = vec![
             ::cli_table::Cell::cell(&self.name),
             ::cli_table::Cell::cell(display_percent(&self.percent_app)),
@@ -143,22 +146,20 @@ impl ::cli_table::Row for &Timing {
                 ::cli_table::Cell::cell(display_total(&self.total_cpu)),
             ])
         } else {
-            row.extend([::cli_table::Cell::cell("-"), ::cli_table::Cell::cell("-")])
+            row.extend([empty(), empty()])
         }
-        let average = if self.average.is_zero() {
-            ::cli_table::Cell::cell("-")
+        let average = if self.average.is_zero() || self.calls <= 1 {
+            empty()
         } else {
-            ::cli_table::Cell::cell(display_calls(&self.average)).justify(cli_table::format::Justify::Right)
+            ::cli_table::Cell::cell(display_calls(&self.average))
+                .justify(cli_table::format::Justify::Right)
         };
         let calls = if self.calls == 0 {
-            ::cli_table::Cell::cell("-")
+            empty()
         } else {
             ::cli_table::Cell::cell(self.calls).justify(cli_table::format::Justify::Right)
         };
-        row.extend([
-            average,
-            calls,
-        ]);
+        row.extend([average, calls]);
         ::cli_table::Row::row(row)
     }
 }
@@ -223,7 +224,7 @@ struct ThreadProfiler {
     scopes: Vec<Rc<RefCell<ScopeProfiler>>>,
     current: Option<Rc<RefCell<ScopeProfiler>>>,
     thread_start: std::time::Instant,
-    thread_time: Option<std::time::Duration>
+    thread_time: Option<std::time::Duration>,
 }
 
 #[cfg(feature = "enable")]
@@ -254,15 +255,16 @@ impl GlobalProfiler {
     }
 
     fn print_timings(&self, to: &mut impl std::io::Write) -> std::io::Result<()> {
-        let (mut total_app, mut local_timing) = THREAD_PROFILER.with_borrow(|thread| (thread.get_thread_time(), thread.to_timings()));
-        local_timing.insert(0, Timing {
-            name: String::from("main"),
-            percent_app: 100.,
-            total_real: total_app,
-            percent_cpu: 100.,
-            total_cpu: total_app,
-            average: std::time::Duration::ZERO,
-            calls: 0
+        let (mut total_app, mut local_timing) = THREAD_PROFILER.with_borrow(|thread| {
+            let timings = thread.to_timings();
+            (
+                // Get first time if `print_on_exit!` has been used, or compute the thread time
+                timings
+                    .first()
+                    .map(|t| t.total_real)
+                    .unwrap_or_else(|| thread.get_thread_time()),
+                timings,
+            )
         });
         let timings = &self.timings.read().unwrap();
         for (thread_total, thread) in timings.iter() {
@@ -275,15 +277,16 @@ impl GlobalProfiler {
                 }
             }
         }
-        let total_cpu = local_timing
-            .iter()
-            .map(|t| t.total_cpu)
-            .sum();
+        let total_cpu = local_timing.iter().map(|t| t.total_cpu).sum();
 
         local_timing
             .iter_mut()
             .for_each(|t| t.update_percent(total_app, total_cpu));
-        write!(to, "{}", cli_table::WithTitle::with_title(&local_timing).display()?)
+        write!(
+            to,
+            "{}",
+            cli_table::WithTitle::with_title(&local_timing).display()?
+        )
     }
 }
 
@@ -295,7 +298,7 @@ impl ThreadProfiler {
             scopes: Vec::new(),
             current: None,
             thread_start: std::time::Instant::now(),
-            thread_time: None
+            thread_time: None,
         }
     }
 
@@ -303,7 +306,11 @@ impl ThreadProfiler {
         self.set_thread_time();
         if !self.scopes.is_empty() {
             let timings = self.to_timings();
-            GLOBAL_PROFILER.timings.write().unwrap().push((self.thread_time.unwrap(), timings));
+            GLOBAL_PROFILER
+                .timings
+                .write()
+                .unwrap()
+                .push((self.thread_time.unwrap(), timings));
         }
         *GLOBAL_PROFILER.threads.lock().unwrap() -= 1;
         GLOBAL_PROFILER.cvar.notify_one()
@@ -320,20 +327,14 @@ impl ThreadProfiler {
         }
     }
 
-    fn scope_total(&self) -> std::time::Duration {
-        self.scopes
-            .iter()
-            .map(|s| s.borrow().timings.iter().sum::<std::time::Duration>())
-            .sum()
-    }
-
     fn total(&self) -> std::time::Duration {
         self.scopes.iter().map(|s| s.borrow().total()).sum()
     }
 
     fn to_timings(&self) -> Vec<Timing> {
-        let total = self.total();
-        let timings = self.scopes
+        let total = self.get_thread_time();
+        let timings = self
+            .scopes
             .iter()
             .flat_map(|scope| scope.borrow().to_timings(total))
             .collect();
@@ -472,13 +473,13 @@ macro_rules! prof {
     };
 }
 
-/// Prints the profiled timings to stdout when the `main` exits.
+/// Prints the profiled timings to stdout when `main` exits.
 ///
 /// **Always put at the top of `main` to ensure it's dropped last.**
 ///
 /// Print to stderr instead with `print_on_exit!(stderr)`.
-/// 
-/// Or print to a `std::io::Write` with `print_on_exit!(to = || std::io::stdout())`
+///
+/// Or print to a `std::io::Write` with `print_on_exit!(to = std::io::stdout())`
 ///
 /// # Examples
 /// ```
@@ -486,7 +487,6 @@ macro_rules! prof {
 ///
 /// fn main() {
 ///   print_on_exit!();
-///   prof!(main);
 ///   std::thread::sleep(std::time::Duration::from_millis(200));
 /// }
 /// ```
@@ -500,7 +500,7 @@ macro_rules! prof {
 ///   // ...
 /// }
 /// ```
-/// 
+///
 /// Print to a file:
 /// ```
 /// use miniprof::{prof, print_on_exit};
@@ -524,7 +524,10 @@ macro_rules! print_on_exit {
         $crate::print_on_exit!(to = std::io::stderr())
     };
     (to = $to:expr) => {
+        // Wakes up the main thread's profiler to ensure that the `main` time is recorded properly
         let mut _to = $to;
         let _guard = $crate::zz_private::MiniprofDrop::new(&mut _to);
+        // $crate::zz_private::init_profiler();
+        prof!()
     };
 }
