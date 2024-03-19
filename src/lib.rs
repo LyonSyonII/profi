@@ -1,6 +1,9 @@
 //! A simple, multithreaded profiler for Rust.
 //!
 //! Records the time it takes for a scope to end and print the timings to stdout or stderr when the program exits.
+//! 
+//! Each measurement has an overhead of ~16-29ns, so it shouldn't impact benchmarks.  
+//! Run the [benchmarks](https://github.com/LyonSyonII/miniprof/blob/main/examples/benchmark.rs) example to see what's the overhead on your machine.
 //!
 //! Set the `enable` feature to use the profiler.  
 //! If the feature is not enabled, all macros and methods will be no-ops and the timings will not be recorded.  
@@ -172,12 +175,6 @@ impl ::cli_table::Row for Timing {
     }
 }
 
-/* impl cli_table::Table for Timing {
-    fn table(self) -> cli_table::TableStruct {
-
-    }
-} */
-
 #[cfg(feature = "enable")]
 impl Timing {
     fn from_durations(
@@ -327,10 +324,6 @@ impl ThreadProfiler {
         }
     }
 
-    fn total(&self) -> std::time::Duration {
-        self.scopes.iter().map(|s| s.borrow().total()).sum()
-    }
-
     fn to_timings(&self) -> Vec<Timing> {
         let total = self.get_thread_time();
         let timings = self
@@ -398,10 +391,6 @@ impl ScopeProfiler {
                     .flat_map(|child| child.borrow().to_timings(total)),
             )
             .collect()
-    }
-    fn total(&self) -> std::time::Duration {
-        self.timings.iter().sum::<std::time::Duration>()
-            + self.children.iter().map(|c| c.borrow().total()).sum()
     }
 }
 
@@ -528,6 +517,6 @@ macro_rules! print_on_exit {
         let mut _to = $to;
         let _guard = $crate::zz_private::MiniprofDrop::new(&mut _to);
         // $crate::zz_private::init_profiler();
-        prof!()
+        $crate::prof!()
     };
 }
