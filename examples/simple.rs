@@ -1,4 +1,4 @@
-use miniprof::{print_on_exit, prof};
+use miniprof::print_on_exit;
 
 fn main() {
     // Prints the timings to stdout when the program exits
