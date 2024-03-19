@@ -136,6 +136,7 @@ impl ::cli_table::Row for &Timing {
             ::cli_table::Cell::cell(display_percent(&self.percent_app)),
             ::cli_table::Cell::cell(display_total(&self.total_real)),
         ];
+
         if self.total_real != self.total_cpu {
             row.extend([
                 ::cli_table::Cell::cell(display_percent(&self.percent_cpu)),
@@ -144,10 +145,19 @@ impl ::cli_table::Row for &Timing {
         } else {
             row.extend([::cli_table::Cell::cell("-"), ::cli_table::Cell::cell("-")])
         }
+        let average = if self.average.is_zero() {
+            ::cli_table::Cell::cell("-")
+        } else {
+            ::cli_table::Cell::cell(display_calls(&self.average)).justify(cli_table::format::Justify::Right)
+        };
+        let calls = if self.calls == 0 {
+            ::cli_table::Cell::cell("-")
+        } else {
+            ::cli_table::Cell::cell(self.calls).justify(cli_table::format::Justify::Right)
+        };
         row.extend([
-            ::cli_table::Cell::cell(display_calls(&self.average))
-                .justify(cli_table::format::Justify::Right),
-            ::cli_table::Cell::cell(self.calls).justify(cli_table::format::Justify::Right),
+            average,
+            calls,
         ]);
         ::cli_table::Row::row(row)
     }
@@ -245,6 +255,15 @@ impl GlobalProfiler {
 
     fn print_timings(&self, to: &mut impl std::io::Write) -> std::io::Result<()> {
         let (mut total_app, mut local_timing) = THREAD_PROFILER.with_borrow(|thread| (thread.get_thread_time(), thread.to_timings()));
+        local_timing.insert(0, Timing {
+            name: String::from("main"),
+            percent_app: 100.,
+            total_real: total_app,
+            percent_cpu: 100.,
+            total_cpu: total_app,
+            average: std::time::Duration::ZERO,
+            calls: 0
+        });
         let timings = &self.timings.read().unwrap();
         for (thread_total, thread) in timings.iter() {
             total_app = std::cmp::max(total_app, *thread_total);
@@ -256,7 +275,6 @@ impl GlobalProfiler {
                 }
             }
         }
-        dbg!(total_app);
         let total_cpu = local_timing
             .iter()
             .map(|t| t.total_cpu)
@@ -434,6 +452,18 @@ fn display_total(d: &std::time::Duration) -> String {
 /// ```
 #[macro_export]
 macro_rules! prof {
+    () => {
+        let _guard = $crate::zz_private::ScopeGuard::new({
+            // https://docs.rs/stdext/latest/src/stdext/macros.rs.html#63-74
+            fn f() {}
+            fn type_name_of<T>(_: T) -> &'static str {
+                std::any::type_name::<T>()
+            }
+            let name = type_name_of(f);
+            // `3` is the length of the `::f`.
+            &name[..name.len() - 3]
+        });
+    };
     ($name:ident) => {
         let _guard = $crate::zz_private::ScopeGuard::new(stringify!($name));
     };
