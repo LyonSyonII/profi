@@ -118,6 +118,7 @@ struct Timing {
 #[cfg(feature = "enable")]
 fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
     let mut table = comfy_table::Table::new();
+    table.load_preset(comfy_table::presets::UTF8_FULL);
     table.set_header([
         "Name", "% Application Time", "Real Time", "% CPU Time", "CPU Time", "Average time", "Calls"
     ]);
@@ -145,7 +146,7 @@ fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
         let calls = if timing.calls == 0 {
             empty()
         } else {
-            cell(timing.calls)
+            cell(timing.calls).set_alignment(comfy_table::CellAlignment::Right)
         };
         table.add_row([name, app_percent, real_time, cpu_percent, cpu_time, average, calls]);
     }

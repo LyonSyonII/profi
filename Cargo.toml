@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-comfy-table = { version = "7.1.0", optional = true }
+comfy-table = { version = "7.1.0", default-features = false, optional = true }
 rayon = { version = "1.9.0", default-features = false, optional = true }
 
 [profile.dev]
@@ -14,3 +14,4 @@ debug = 0
 default = ["enable"]
 enable = ["comfy-table"]
 rayon = ["dep:rayon"]
+comfy-table = ["dep:comfy-table"]

@@ -10,7 +10,7 @@ fn main() {
     };
 
     // Benchmark how much time it takes for `prof!` to create and drop
-    
+
     {
         // Get function name
         miniprof::prof!();
@@ -31,28 +31,24 @@ fn main() {
     }
     
     iter *= 10;
-    clear_cache();
     
     for _ in 0..iter {
         miniprof::prof!(prof100);
     }
     
     iter *= 10;
-    clear_cache();
     
     for _ in 0..iter {
         miniprof::prof!(prof1000);
     }
 
     iter *= 10;
-    clear_cache();
 
     for _ in 0..iter {
         miniprof::prof!(prof10_000);
     }
 
     iter *= 10;
-    clear_cache();
 
     for _ in 0..iter {
         miniprof::prof!(prof100_000);
