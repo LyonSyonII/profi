@@ -116,63 +116,41 @@ struct Timing {
 }
 
 #[cfg(feature = "enable")]
-impl ::cli_table::Title for Timing {
-    fn title() -> ::cli_table::RowStruct {
-        let title: ::std::vec::Vec<::cli_table::CellStruct> = ::std::vec![
-            ::cli_table::Style::bold(::cli_table::Cell::cell("Name"), true),
-            ::cli_table::Style::bold(::cli_table::Cell::cell("% Application Time"), true),
-            ::cli_table::Style::bold(::cli_table::Cell::cell("Real Time"), true),
-            ::cli_table::Style::bold(::cli_table::Cell::cell("% CPU Time"), true),
-            ::cli_table::Style::bold(::cli_table::Cell::cell("CPU Time"), true),
-            ::cli_table::Style::bold(::cli_table::Cell::cell("Average time"), true),
-            ::cli_table::Style::bold(::cli_table::Cell::cell("Calls"), true),
-        ];
-        ::cli_table::Row::row(title)
-    }
-}
+fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
+    let mut table = comfy_table::Table::new();
+    table.set_header([
+        "Name", "% Application Time", "Real Time", "% CPU Time", "CPU Time", "Average time", "Calls"
+    ]);
 
-#[cfg(feature = "enable")]
-impl ::cli_table::Row for &Timing {
-    fn row(self) -> ::cli_table::RowStruct {
-        use ::cli_table::format::Justify;
-        let empty = || ::cli_table::Cell::cell("-").justify(Justify::Center);
-
-        let mut row = vec![
-            ::cli_table::Cell::cell(&self.name),
-            ::cli_table::Cell::cell(display_percent(&self.percent_app)),
-            ::cli_table::Cell::cell(display_total(&self.total_real)),
-        ];
-
-        if self.total_real != self.total_cpu {
-            row.extend([
-                ::cli_table::Cell::cell(display_percent(&self.percent_cpu)),
-                ::cli_table::Cell::cell(display_total(&self.total_cpu)),
-            ])
-        } else {
-            row.extend([empty(), empty()])
+    let empty = || comfy_table::Cell::new("-").set_alignment(comfy_table::CellAlignment::Center);
+    
+    for timing in timings {
+        fn cell(c: impl Into<comfy_table::Cell>) -> comfy_table::Cell {
+            c.into()
         }
-        let average = if self.average.is_zero() || self.calls <= 1 {
-            empty()
-        } else {
-            ::cli_table::Cell::cell(display_calls(&self.average))
-                .justify(cli_table::format::Justify::Right)
-        };
-        let calls = if self.calls == 0 {
-            empty()
-        } else {
-            ::cli_table::Cell::cell(self.calls).justify(cli_table::format::Justify::Right)
-        };
-        row.extend([average, calls]);
-        ::cli_table::Row::row(row)
-    }
-}
 
-#[cfg(feature = "enable")]
-impl ::cli_table::Row for Timing {
-    fn row(self) -> ::cli_table::RowStruct {
-        #[allow(clippy::needless_borrows_for_generic_args)]
-        ::cli_table::Row::row(&self)
+        let name = cell(timing.name);
+        let app_percent = cell(format!("{:.2}%", timing.percent_app));
+        let real_time = cell(format!("{:.2?}", timing.total_real));
+        let (cpu_percent, cpu_time) = if timing.total_real == timing.total_cpu {
+            (empty(), empty())
+        } else {
+            (cell(format!("{:.2}%", timing.percent_cpu)), cell(format!("{:.2?}", timing.total_cpu)))
+        };
+        let average = if timing.average.is_zero() || timing.calls <= 1 {
+            empty()
+        } else {
+            cell(format!("{:.2?}/call", timing.average))
+        };
+        let calls = if timing.calls == 0 {
+            empty()
+        } else {
+            cell(timing.calls)
+        };
+        table.add_row([name, app_percent, real_time, cpu_percent, cpu_time, average, calls]);
     }
+
+    table
 }
 
 #[cfg(feature = "enable")]
@@ -251,7 +229,7 @@ impl GlobalProfiler {
         }
     }
 
-    fn print_timings(&self, to: &mut impl std::io::Write) -> std::io::Result<()> {
+    fn print_timings(&self, mut to: impl std::io::Write) -> std::io::Result<()> {
         let (mut total_app, mut local_timing) = THREAD_PROFILER.with_borrow(|thread| {
             let timings = thread.to_timings();
             (
@@ -282,7 +260,7 @@ impl GlobalProfiler {
         write!(
             to,
             "{}",
-            cli_table::WithTitle::with_title(&local_timing).display()?
+            create_table(local_timing)
         )
     }
 }
@@ -402,24 +380,6 @@ impl Drop for ThreadProfiler {
     }
 }
 
-#[cfg(feature = "enable")]
-#[inline(always)]
-fn display_percent(f: &f64) -> String {
-    format!("{:.2}%", f)
-}
-
-#[cfg(feature = "enable")]
-#[inline(always)]
-fn display_calls(d: &std::time::Duration) -> String {
-    format!("{:.2?}/call", d)
-}
-
-#[cfg(feature = "enable")]
-#[inline(always)]
-fn display_total(d: &std::time::Duration) -> String {
-    format!("{:.2?}", d)
-}
-
 /// Profiles the time it takes for the scope to end.
 ///
 /// You can also bind it to a variable to stop the profiling early.
@@ -438,6 +398,8 @@ fn display_total(d: &std::time::Duration) -> String {
 ///   let _guard = prof!("sleep2");
 ///   std::thread::sleep(std::time::Duration::from_millis(100));
 ///   drop(_guard);
+/// 
+///   std::thread::sleep(std::time::Duration::from_millis(100));
 /// }
 /// ```
 #[macro_export]
@@ -463,8 +425,10 @@ macro_rules! prof {
 }
 
 /// Prints the profiled timings to stdout when `main` exits.
+/// 
+/// Creates an implicit `main` profiling guard, which will profile the whole program's time.
 ///
-/// **Always put at the top of `main` to ensure it's dropped last.**
+/// **Always put at the top of the `main` function to ensure it's dropped last.**
 ///
 /// Print to stderr instead with `print_on_exit!(stderr)`.
 ///
@@ -476,7 +440,7 @@ macro_rules! prof {
 ///
 /// fn main() {
 ///   print_on_exit!();
-///   std::thread::sleep(std::time::Duration::from_millis(200));
+///   // ...
 /// }
 /// ```
 ///
@@ -496,7 +460,7 @@ macro_rules! prof {
 ///
 /// fn main() {
 ///   let mut file = Vec::<u8>::new();
-///   print_on_exit!(to = &mut file);
+///   print_on_exit!(to = &mut file, ondrop = |f| println!("{f:?}"));
 ///   // ...
 /// }
 /// ```
@@ -513,10 +477,13 @@ macro_rules! print_on_exit {
         $crate::print_on_exit!(to = std::io::stderr())
     };
     (to = $to:expr) => {
-        // Wakes up the main thread's profiler to ensure that the `main` time is recorded properly
-        let mut _to = $to;
-        let _guard = $crate::zz_private::MiniprofDrop::new(&mut _to);
-        // $crate::zz_private::init_profiler();
-        $crate::prof!()
+        $crate::print_on_exit!(to = $to, ondrop = |_| {})
     };
+    (to = $to:expr, ondrop = $ondrop:expr) => {
+        let mut _to = $to;
+        let _guard = $crate::zz_private::MiniprofDrop::new(&mut _to, $ondrop);
+        // Implicit guard for profiling the whole application
+        #[cfg(feature = "enable")]
+        $crate::prof!()
+    }
 }

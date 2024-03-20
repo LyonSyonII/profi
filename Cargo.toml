@@ -4,9 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cli-table = { version = "0.4.7", features = ["derive"], default-features = false, optional = true }
-dashmap = { version = "5.5.3", features = ["inline"], default-features = false, optional = true }
-once_cell = { version = "1.19.0", default-features = false, optional = true }
+comfy-table = { version = "7.1.0", optional = true }
 rayon = { version = "1.9.0", default-features = false, optional = true }
 
 [profile.dev]
@@ -14,5 +12,5 @@ debug = 0
 
 [features]
 default = ["enable"]
-enable = ["cli-table", "dashmap", "once_cell"]
+enable = ["comfy-table"]
 rayon = ["dep:rayon"]

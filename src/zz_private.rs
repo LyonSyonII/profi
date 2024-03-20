@@ -76,20 +76,30 @@ impl Drop for ScopeGuard {
 }
 
 #[allow(dead_code)]
-pub struct MiniprofDrop<'a, W: std::io::Write>(&'a mut W);
+pub struct MiniprofDrop<W: std::io::Write, F: Fn(&mut W)>(W, F);
 
-impl<'a, W: std::io::Write> MiniprofDrop<'a, W> {
-    pub fn new(to: &'a mut W) -> Self {
-        Self(to)
+impl<W, F> MiniprofDrop<W, F>
+where 
+    W: std::io::Write,
+    F: Fn(&mut W)
+{
+    pub fn new(to: W, ondrop: F) -> Self {
+        Self(to, ondrop)
     }
 }
 
 #[cfg(feature = "enable")]
-impl<'a, W: std::io::Write> std::ops::Drop for MiniprofDrop<'a, W> {
+impl<W, F> std::ops::Drop for MiniprofDrop<W, F> 
+where 
+    W: std::io::Write,
+    F: Fn(&mut W)
+{
     fn drop(&mut self) {
         drop_threads();
         block_until_exited();
-        print_timings_to(self.0).unwrap();
+        print_timings_to(&mut self.0).unwrap();
+        let s = &self.1;
+        s(&mut self.0)
     }
 }
 
@@ -101,7 +111,7 @@ impl<'a, W: std::io::Write> std::ops::Drop for MiniprofDrop<'a, W> {
 #[inline(always)]
 pub fn print_timings() -> std::io::Result<()> {
     #[cfg(feature = "enable")]
-    crate::GLOBAL_PROFILER.print_timings(&mut std::io::stdout().lock())?;
+    crate::GLOBAL_PROFILER.print_timings(std::io::stdout().lock())?;
     Ok(())
 }
 /// Prints the profiled timings to stderr.
@@ -112,7 +122,7 @@ pub fn print_timings() -> std::io::Result<()> {
 #[inline(always)]
 pub fn eprint_timings() -> std::io::Result<()> {
     #[cfg(feature = "enable")]
-    crate::GLOBAL_PROFILER.print_timings(&mut std::io::stderr())?;
+    crate::GLOBAL_PROFILER.print_timings(std::io::stderr())?;
     Ok(())
 }
 /// Prints the profiled timings to the provided [`std::io::Write`].
@@ -122,7 +132,7 @@ pub fn eprint_timings() -> std::io::Result<()> {
 /// It's recommended to only use it when all threads have exited and have been joined correctly, or you'll risk corrupt data.
 #[inline(always)]
 #[allow(unused)]
-pub fn print_timings_to(to: &mut impl std::io::Write) -> std::io::Result<()> {
+pub fn print_timings_to(to: impl std::io::Write) -> std::io::Result<()> {
     std::thread::sleep(std::time::Duration::from_millis(500));
     #[cfg(feature = "enable")]
     crate::GLOBAL_PROFILER.print_timings(to)?;
