@@ -56,7 +56,7 @@ fn block_until_exited() {
 impl ScopeGuard {
     #[inline(always)]
     #[allow(unused)]
-    pub fn new(name: &'static str) -> Self {
+    pub fn new(name: impl Into<std::borrow::Cow<'static, str>>) -> Self {
         #[cfg(feature = "enable")]
         crate::THREAD_PROFILER.with_borrow_mut(|thread| thread.push(name));
         Self {

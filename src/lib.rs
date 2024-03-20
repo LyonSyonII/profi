@@ -157,7 +157,7 @@ fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
 #[cfg(feature = "enable")]
 impl Timing {
     fn from_durations(
-        name: &str,
+        name: String,
         timings: &[std::time::Duration],
         total: std::time::Duration,
     ) -> Self {
@@ -165,7 +165,7 @@ impl Timing {
         let percent = (sum.as_secs_f64() / total.as_secs_f64()) * 100.0;
         let average = sum / timings.len() as u32;
         Self {
-            name: name.to_string(),
+            name,
             percent_app: percent,
             total_real: sum,
             percent_cpu: percent,
@@ -206,7 +206,7 @@ struct ThreadProfiler {
 #[cfg(feature = "enable")]
 #[derive(Debug)]
 struct ScopeProfiler {
-    name: &'static str,
+    name: std::borrow::Cow<'static, str>,
     timings: Vec<std::time::Duration>,
     parent: Option<Rc<RefCell<ScopeProfiler>>>,
     children: Vec<Rc<RefCell<ScopeProfiler>>>,
@@ -313,7 +313,9 @@ impl ThreadProfiler {
         timings
     }
 
-    fn push(&mut self, name: &'static str) {
+    fn push(&mut self, name: impl Into<std::borrow::Cow<'static, str>>) {
+        let name = name.into();
+
         let node = if let Some(current) = &self.current {
             let mut current_mut = current.borrow_mut();
             if let Some(scope) = current_mut
@@ -352,9 +354,9 @@ impl ThreadProfiler {
 
 #[cfg(feature = "enable")]
 impl ScopeProfiler {
-    fn new(name: &'static str, parent: Option<Rc<RefCell<ScopeProfiler>>>) -> Rc<RefCell<Self>> {
+    fn new(name: std::borrow::Cow<'static, str>, parent: Option<Rc<RefCell<ScopeProfiler>>>) -> Rc<RefCell<Self>> {
         let s = Self {
-            name,
+            name: name.into(),
             parent,
             timings: Vec::new(),
             children: Vec::new(),
@@ -362,7 +364,7 @@ impl ScopeProfiler {
         Rc::new(RefCell::new(s))
     }
     fn to_timings(&self, total: std::time::Duration) -> Vec<Timing> {
-        let timing = Timing::from_durations(self.name, &self.timings, total);
+        let timing = Timing::from_durations(self.name.to_string(), &self.timings, total);
         std::iter::once(timing)
             .chain(
                 self.children
@@ -405,8 +407,15 @@ impl Drop for ThreadProfiler {
 /// ```
 #[macro_export]
 macro_rules! prof {
+    ($($tt:tt)*) => {
+        let _guard = $crate::prof_guard!($($tt)*);
+    }
+}
+
+#[macro_export]
+macro_rules! prof_guard {
     () => {
-        let _guard = $crate::zz_private::ScopeGuard::new({
+        $crate::prof_guard!({
             // https://docs.rs/stdext/latest/src/stdext/macros.rs.html#63-74
             fn f() {}
             fn type_name_of<T>(_: T) -> &'static str {
@@ -415,12 +424,15 @@ macro_rules! prof {
             let name = type_name_of(f);
             // `3` is the length of the `::f`.
             &name[..name.len() - 3]
-        });
+        })
     };
     ($name:ident) => {
-        let _guard = $crate::zz_private::ScopeGuard::new(stringify!($name));
+        $crate::prof_guard!(stringify!($name))
     };
-    ($name:literal) => {
+    (fmt = $( $name:tt )+) => {
+        $crate::prof_guard!(format!($($name)+))
+    };
+    ($name:expr) => {
         $crate::zz_private::ScopeGuard::new($name)
     };
 }

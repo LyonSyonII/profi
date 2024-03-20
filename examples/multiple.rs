@@ -1,4 +1,4 @@
-use miniprof::{print_on_exit, prof};
+use miniprof::{print_on_exit, prof, prof_guard};
 
 fn wait_for_a_bit() {
     prof!(wait_for_a_bit);
@@ -9,9 +9,9 @@ fn main() {
     // Prints the timings to stdout when the program exits
     // Always put at the top of the main function to ensure it's the last thing to run
     print_on_exit!();
-
-    // The `prof!` macro creates a guard that records the time until it goes out of scope
-    let main1 = prof!("main1");
+    
+    // The `prof_guard!` macro creates a guard that records the time until it goes out of scope
+    let main1 = prof_guard!("main1");
 
     // Sleep for a bit to simulate some work
     std::thread::sleep(std::time::Duration::from_millis(200));
