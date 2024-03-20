@@ -407,25 +407,23 @@ impl Drop for ThreadProfiler {
 }
 
 /// Profiles the time it takes for the scope to end.
-///
-/// You can also bind it to a variable to stop the profiling early.
+/// 
+/// If you want to get an explicit guard, use [`prof_guard!`].
 ///
 /// # Examples
 /// ```
 /// use miniprof::{prof, print_on_exit};
+/// 
+/// fn sleep() {
+///     // Profile `sleep`
+///     prof!();
+///     std::thread::sleep(std::time::Duration::from_millis(200));
+/// }
 ///
 /// fn main() {
 ///   print_on_exit!();
-///   prof!(main);
-///
-///   std::thread::sleep(std::time::Duration::from_millis(100));
-///
-///   // Bind it to a variable to stop the profiling early
-///   let _guard = prof!("sleep2");
-///   std::thread::sleep(std::time::Duration::from_millis(100));
-///   drop(_guard);
 /// 
-///   std::thread::sleep(std::time::Duration::from_millis(100));
+///   sleep();
 /// }
 /// ```
 #[macro_export]
@@ -435,6 +433,31 @@ macro_rules! prof {
     }
 }
 
+/// Returns a guard that will profile as long as it's alive.
+/// 
+/// This will be until the scope ends or dropped manually.
+///
+/// # Examples
+/// ```
+/// use miniprof::{prof_guard, print_on_exit};
+/// 
+/// fn sleep(time: u64) {
+///   // Must be saved into an explicit guard, or it will be dropped at the end of the `if` block
+///   let _guard = if time < 100 {
+///     prof_guard!("< 100")
+///   } else {
+///     prof_guard!(">= 100")
+///   };
+///   std::thread::sleep(std::time::Duration::from_millis(time));
+/// }
+///
+/// fn main() {
+///   print_on_exit!();
+/// 
+///   sleep(50);
+///   sleep(150);
+/// }
+/// ```
 #[macro_export]
 macro_rules! prof_guard {
     () => {
