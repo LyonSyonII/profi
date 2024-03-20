@@ -27,10 +27,20 @@ fn main() {
     // Many times
     // 10..100_000
     let mut iter = 10;
-    for _ in 0..5 {
+    for _ in 0..1 {
         for _ in 0..iter {
             miniprof::prof!(fmt = "prof{iter}");
         }
         iter *= 10;
     }
+    
+    // Highly nested
+    fn nest(depth: usize, limit: usize) {
+        if depth > limit {
+            return
+        }
+        miniprof::prof!(fmt = "depth = {depth}");
+        nest(depth + 1, limit);
+    }
+    nest(0, 20);
 }
