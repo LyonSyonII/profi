@@ -5,37 +5,50 @@
 //! Each measurement has an overhead of ~16-29ns, so it shouldn't impact benchmarks.  
 //! Run the [benchmarks](https://github.com/LyonSyonII/miniprof/blob/main/examples/benchmark.rs) example to see what's the overhead on your machine.
 //!
-//! Set the `enable` feature to use the profiler.  
-//! If the feature is not enabled, all macros and methods will be no-ops and the timings will not be recorded.  
-//! You can disable the feature adding `default-features = false` to the `miniprof` dependency in your `Cargo.toml`.
+//! # Setup
+//! 
+//! `miniprof` is controlled by the `enable` feature, which is active by default.  
+//! When disabled, all macros and methods will become no-ops, resulting in zero impact on your code.
+//! 
+//! To disable it, add `default-features = false` to the `miniprof` dependency in your `Cargo.toml`.
+//! 
+//! For convenience, you can also add a custom feature:
+//! ```toml
+//! [dependencies]
+//! miniprof = { version = "*", default-features = false }
+//! 
+//! [features]
+//! prof = ["miniprof/enable"]
+//! ```
+//! 
+//! And run it with `cargo run --release --features prof`
 //!
-//! # Examples
+//! # Usage
 //!
-//! Basic usage:
+//! ## Basic Usage
 //! ```rust
 //! use miniprof::{prof, print_on_exit};
 //!
 //! fn main() {
 //!  // Prints the timings to stdout when the program exits
-//!  // Always put at the top of the main function to ensure it's the last thing to run
+//!  // Always put at the top of the main function to ensure it's dropped last
+//!  //
+//!  // An implicit `main` guard is created to profile the whole application
 //!  print_on_exit!();
-//!
-//!  // The `prof!` macro creates a guard that records the time until it goes out of scope
-//!  prof!(main);
 //!
 //!  // Sleep for a bit to simulate some work
 //!  std::thread::sleep(std::time::Duration::from_millis(200));
 //! }
 //! ```
 //! ```plaintext
-//! +------+-----------------+---------------+-------+
-//! | Name | % of total time | Average time  | Calls |
-//! +------+-----------------+---------------+-------+
-//! | main | 100.00%         | 200.20ms/call |     1 |
-//! +------+-----------------+---------------+-------+
+//! ┌──────────────┬────────────────────┬───────────┬────────────┬──────────┬──────────────┬───────┐
+//! │ Name         ┆ % Application Time ┆ Real Time ┆ % CPU Time ┆ CPU Time ┆ Average time ┆ Calls │
+//! ╞══════════════╪════════════════════╪═══════════╪════════════╪══════════╪══════════════╪═══════╡
+//! │ simple::main ┆ 100.00%            ┆ 200.13ms  ┆      -     ┆     -    ┆       -      ┆     1 │
+//! └──────────────┴────────────────────┴───────────┴────────────┴──────────┴──────────────┴───────┘
 //! ```
 //!
-//! Also supports loops or multiple calls to functions:
+//! ## Loops
 //! ```rust
 //! use miniprof::{prof, print_on_exit};
 //!
@@ -43,54 +56,64 @@
 //!   print_on_exit!();
 //!
 //!   for _ in 0..100 {
-//!       prof!(loop);
+//!       prof!(iteration);
 //!       std::thread::sleep(std::time::Duration::from_millis(10));
 //!   }
 //! }
 //! ```
 //! ```plaintext
-//! +------+-----------------+--------------+-------+
-//! | Name | % of total time | Average time | Calls |
-//! +------+-----------------+--------------+-------+
-//! | loop | 100.00%         | 10.10ms/call |   100 |
-//! +------+-----------------+--------------+-------+
+//! ┌────────────┬────────────────────┬───────────┬────────────┬──────────┬──────────────┬───────┐
+//! │ Name       ┆ % Application Time ┆ Real Time ┆ % CPU Time ┆ CPU Time ┆ Average time ┆ Calls │
+//! ╞════════════╪════════════════════╪═══════════╪════════════╪══════════╪══════════════╪═══════╡
+//! │ loop::main ┆ 100.00%            ┆ 1.01s     ┆      -     ┆     -    ┆       -      ┆     1 │
+//! ├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+//! │ iteration  ┆ 99.99%             ┆ 1.01s     ┆      -     ┆     -    ┆ 10.10ms/call ┆   100 │
+//! └────────────┴────────────────────┴───────────┴────────────┴──────────┴──────────────┴───────┘
 //!```
 //!
-//! Works as expected when using multiple threads:
+//! ## Multiple threads
 //! ```rust
-//! use miniprof::{print_on_exit, prof};
-//!
-//! fn main() {
-//!   print_on_exit!();
-//!   
-//!   std::thread::scope(|s| {
-//!     // Spawn 10 threads
-//!     for i in 0..10 {
-//!       s.spawn(move || {
-//!         for _ in 0..100 {
-//!           // Need to bind it to a variable to ensure it doesn't go out of scope
-//!           let _guard = if i < 6 {
-//!               prof!("6 first threads")
-//!           } else {
-//!               prof!("4 last threads")
-//!           };
-//!           std::thread::sleep(std::time::Duration::from_millis(10));
-//!           // The guard goes out of scope here
-//!         }
-//!       });
+//! use miniprof::{print_on_exit, prof_guard};
+//! 
+//! fn do_work(i: usize) {
+//!     for _ in 0..100 {
+//!         // Need to bind it to a variable to ensure it isn't dropped before sleeping
+//!         let _guard = if i < 6 {
+//!             prof_guard!("6 first")
+//!         } else {
+//!             prof_guard!("4 last")
+//!         };
+//!         std::thread::sleep(std::time::Duration::from_millis(10));
+//!         // The guard goes out of scope here
 //!     }
-//!   });
+//! }
+//! 
+//! fn main() {
+//!     print_on_exit!();
+//! 
+//!     std::thread::scope(|s| {
+//!         for i in 0..10 {
+//!             s.spawn(move || {
+//!                 do_work(i);
+//!             });
+//!         }
+//!     });
 //! }
 //! ```
 //! ```plaintext
-//! +-----------------+-----------------+--------------+-------+
-//! | Name            | % of total time | Average time | Calls |
-//! +-----------------+-----------------+--------------+-------+
-//! | 6 first threads | 60.00%          | 10.08ms/call |   600 |
-//! +-----------------+-----------------+--------------+-------+
-//! | 4 last threads  | 40.00%          | 10.08ms/call |   400 |
-//! +-----------------+-----------------+--------------+-------+
+//! ┌───────────┬────────────────────┬───────────┬────────────┬──────────┬──────────────┬───────┐
+//! │ Name      ┆ % Application Time ┆ Real Time ┆ % CPU Time ┆ CPU Time ┆ Average time ┆ Calls │
+//! ╞═══════════╪════════════════════╪═══════════╪════════════╪══════════╪══════════════╪═══════╡
+//! │ main      ┆ 100.00%            ┆ 1.01s     ┆      -     ┆     -    ┆       -      ┆     1 │
+//! ├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+//! │ 6 first   ┆ 99.98%             ┆ 1.01s     ┆ 54.55%     ┆ 6.04s    ┆ 10.08ms/call ┆   600 │
+//! ├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+//! │ 4 last    ┆ 99.96%             ┆ 1.01s     ┆ 36.36%     ┆ 4.03s    ┆ 10.07ms/call ┆   400 │
+//! └───────────┴────────────────────┴───────────┴────────────┴──────────┴──────────────┴───────┘
 //! ```
+//! "CPU Time" is the combined time all threads have spent on that scope.  
+//! 
+//! For example, "6 first" has a "CPU Time" of 6s because each thread waits 1s, and the program spawns six of them.
 #![allow(clippy::needless_doctest_main)]
 #![deny(unsafe_code)]
 
@@ -356,7 +379,7 @@ impl ThreadProfiler {
 impl ScopeProfiler {
     fn new(name: std::borrow::Cow<'static, str>, parent: Option<Rc<RefCell<ScopeProfiler>>>) -> Rc<RefCell<Self>> {
         let s = Self {
-            name: name.into(),
+            name,
             parent,
             timings: Vec::new(),
             children: Vec::new(),
@@ -496,7 +519,9 @@ macro_rules! print_on_exit {
         let mut _to = $to;
         let _guard = $crate::zz_private::MiniprofDrop::new(&mut _to, $ondrop);
         // Implicit guard for profiling the whole application
-        #[cfg(feature = "enable")]
         $crate::prof!()
     }
 }
+
+// TODO: Add macro to remove tokens if #[cfg(feature = enable)] is active
+// Instead of duplicating each macro 
