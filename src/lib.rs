@@ -1,6 +1,6 @@
-//! A simple, multithreaded profiler for Rust.
+//! A simple profiler for single and multithreaded applications.
 //!
-//! Records the time it takes for a scope to end and print the timings to stdout or stderr when the program exits.
+//! Record the time it takes for a scope to end and print the timings when the program exits.
 //! 
 //! Each measurement has an overhead of ~16-29ns, so it shouldn't impact benchmarks.  
 //! Run the [benchmarks](https://github.com/LyonSyonII/miniprof/blob/main/examples/benchmark.rs) example to see what's the overhead on your machine.
@@ -185,8 +185,12 @@ impl Timing {
         total: std::time::Duration,
     ) -> Self {
         let sum = timings.iter().sum::<std::time::Duration>();
-        let percent = (sum.as_secs_f64() / total.as_secs_f64()) * 100.0;
-        let average = sum / timings.len() as u32;
+        let percent = if !total.is_zero() {
+            (sum.as_secs_f64() / total.as_secs_f64()) * 100.0
+        } else {
+            100.0
+        };
+        let average = sum / timings.len().max(1) as u32;
         Self {
             name,
             percent_app: percent,
@@ -231,7 +235,7 @@ struct ThreadProfiler {
 struct ScopeProfiler {
     name: std::borrow::Cow<'static, str>,
     timings: Vec<std::time::Duration>,
-    parent: Option<Rc<RefCell<ScopeProfiler>>>,
+    parent: std::rc::Weak<RefCell<ScopeProfiler>>,
     children: Vec<Rc<RefCell<ScopeProfiler>>>,
 }
 
@@ -349,7 +353,7 @@ impl ThreadProfiler {
                 scope.clone()
             } else {
                 // Create new scope with 'current' as parent
-                let scope = ScopeProfiler::new(name, Some(current.clone()));
+                let scope = ScopeProfiler::new(name, Rc::downgrade(current));
                 // Update current scope's children
                 current_mut.children.push(scope.clone());
                 scope
@@ -357,7 +361,7 @@ impl ThreadProfiler {
         } else if let Some(scope) = self.scopes.iter().find(|s| RefCell::borrow(s).name == name) {
             scope.clone()
         } else {
-            let scope = ScopeProfiler::new(name, None);
+            let scope = ScopeProfiler::new(name, std::rc::Weak::new());
             self.scopes.push(scope.clone());
             scope
         };
@@ -371,13 +375,13 @@ impl ThreadProfiler {
         };
         RefCell::borrow_mut(current).timings.push(duration);
         let parent = current.borrow().parent.clone();
-        self.current = parent;
+        self.current = parent.upgrade();
     }
 }
 
 #[cfg(feature = "enable")]
 impl ScopeProfiler {
-    fn new(name: std::borrow::Cow<'static, str>, parent: Option<Rc<RefCell<ScopeProfiler>>>) -> Rc<RefCell<Self>> {
+    fn new(name: std::borrow::Cow<'static, str>, parent: std::rc::Weak<RefCell<ScopeProfiler>>) -> Rc<RefCell<Self>> {
         let s = Self {
             name,
             parent,
@@ -401,7 +405,7 @@ impl ScopeProfiler {
 #[cfg(feature = "enable")]
 impl Drop for ThreadProfiler {
     fn drop(&mut self) {
-        #[cfg(not(target = "rayon"))]
+        #[cfg(not(feature = "rayon"))]
         self.manual_drop()
     }
 }
@@ -545,6 +549,3 @@ macro_rules! print_on_exit {
         $crate::prof!()
     }
 }
-
-// TODO: Add macro to remove tokens if #[cfg(feature = enable)] is active
-// Instead of duplicating each macro 

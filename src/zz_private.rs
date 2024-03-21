@@ -68,9 +68,10 @@ impl ScopeGuard {
 
 impl Drop for ScopeGuard {
     fn drop(&mut self) {
+        let elapsed = self.instant.elapsed();
         #[cfg(feature = "enable")]
         crate::THREAD_PROFILER.with_borrow_mut(|thread| {
-            thread.pop(self.instant.elapsed());
+            thread.pop(elapsed);
         })
     }
 }
