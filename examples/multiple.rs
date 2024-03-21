@@ -9,7 +9,7 @@ fn main() {
     // Prints the timings to stdout when the program exits
     // Always put at the top of the main function to ensure it's the last thing to run
     print_on_exit!();
-    
+
     // The `prof_guard!` macro creates a guard that records the time until it goes out of scope
     let main1 = prof_guard!("main1");
 

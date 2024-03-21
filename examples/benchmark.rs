@@ -23,7 +23,8 @@ fn main() {
         // With guard
         let _guard = miniprof::prof_guard!(prof_guard);
     }
-    
+
+    // TODO: Fix error with new hierarchy feature
     // Many times
     // 10..100_000
     let mut iter = 10;
@@ -33,11 +34,11 @@ fn main() {
         }
         iter *= 10;
     }
-    
+
     // Highly nested
     fn nest(depth: usize, limit: usize) {
         if depth > limit {
-            return
+            return;
         }
         miniprof::prof!(fmt = "depth = {depth}");
         nest(depth + 1, limit);

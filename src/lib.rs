@@ -1,26 +1,26 @@
 //! A simple profiler for single and multithreaded applications.
 //!
 //! Record the time it takes for a scope to end and print the timings when the program exits.
-//! 
+//!
 //! Each measurement has an overhead of ~16-29ns, so it shouldn't impact benchmarks.  
 //! Run the [benchmarks](https://github.com/LyonSyonII/miniprof/blob/main/examples/benchmark.rs) example to see what's the overhead on your machine.
 //!
 //! # Setup
-//! 
+//!
 //! `miniprof` is controlled by the `enable` feature, which is active by default.  
 //! When disabled, all macros and methods will become no-ops, resulting in zero impact on your code.
-//! 
+//!
 //! To disable it, add `default-features = false` to the `miniprof` dependency in your `Cargo.toml`.
-//! 
+//!
 //! For convenience, you can also add a custom feature:
 //! ```toml
 //! [dependencies]
 //! miniprof = { version = "*", default-features = false }
-//! 
+//!
 //! [features]
 //! prof = ["miniprof/enable"]
 //! ```
-//! 
+//!
 //! And run it with `cargo run --release --features prof`
 //!
 //! # Usage
@@ -74,7 +74,7 @@
 //! ## Multiple threads
 //! ```rust
 //! use miniprof::{print_on_exit, prof_guard};
-//! 
+//!
 //! fn do_work(i: usize) {
 //!     for _ in 0..100 {
 //!         // Need to bind it to a variable to ensure it isn't dropped before sleeping
@@ -87,10 +87,10 @@
 //!         // The guard goes out of scope here
 //!     }
 //! }
-//! 
+//!
 //! fn main() {
 //!     print_on_exit!();
-//! 
+//!
 //!     std::thread::scope(|s| {
 //!         for i in 0..10 {
 //!             s.spawn(move || {
@@ -112,8 +112,12 @@
 //! └───────────┴────────────────────┴───────────┴────────────┴──────────┴──────────────┴───────┘
 //! ```
 //! "CPU Time" is the combined time all threads have spent on that scope.  
-//! 
+//!
 //! For example, "6 first" has a "CPU Time" of 6s because each thread waits 1s, and the program spawns six of them.
+//!
+//! # Features
+//! - `enable`: Activates the profiling, if not active all macros become no-ops.
+//! - `hierarchy`: Shows when a `prof!` is the child of another with a visual hierarchy. Can be expensive, disable it if you're measuring very precisely.
 #![allow(clippy::needless_doctest_main)]
 #![deny(unsafe_code)]
 
@@ -143,11 +147,17 @@ fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
     let mut table = comfy_table::Table::new();
     table.load_preset(comfy_table::presets::UTF8_FULL);
     table.set_header([
-        "Name", "% Application Time", "Real Time", "% CPU Time", "CPU Time", "Average time", "Calls"
+        "Name",
+        "% Application Time",
+        "Real Time",
+        "% CPU Time",
+        "CPU Time",
+        "Average time",
+        "Calls",
     ]);
 
     let empty = || comfy_table::Cell::new("-").set_alignment(comfy_table::CellAlignment::Center);
-    
+
     for timing in timings {
         fn cell(c: impl Into<comfy_table::Cell>) -> comfy_table::Cell {
             c.into()
@@ -159,7 +169,10 @@ fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
         let (cpu_percent, cpu_time) = if timing.total_real == timing.total_cpu {
             (empty(), empty())
         } else {
-            (cell(format!("{:.2}%", timing.percent_cpu)), cell(format!("{:.2?}", timing.total_cpu)))
+            (
+                cell(format!("{:.2}%", timing.percent_cpu)),
+                cell(format!("{:.2?}", timing.total_cpu)),
+            )
         };
         let average = if timing.average.is_zero() || timing.calls <= 1 {
             empty()
@@ -171,7 +184,15 @@ fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
         } else {
             cell(timing.calls).set_alignment(comfy_table::CellAlignment::Right)
         };
-        table.add_row([name, app_percent, real_time, cpu_percent, cpu_time, average, calls]);
+        table.add_row([
+            name,
+            app_percent,
+            real_time,
+            cpu_percent,
+            cpu_time,
+            average,
+            calls,
+        ]);
     }
 
     table
@@ -237,6 +258,7 @@ struct ScopeProfiler {
     timings: Vec<std::time::Duration>,
     parent: std::rc::Weak<RefCell<ScopeProfiler>>,
     children: Vec<Rc<RefCell<ScopeProfiler>>>,
+    hierarchy_depth: usize,
 }
 
 #[cfg(feature = "enable")]
@@ -285,11 +307,7 @@ impl GlobalProfiler {
         local_timing
             .iter_mut()
             .for_each(|t| t.update_percent(total_app, total_cpu));
-        write!(
-            to,
-            "{}",
-            create_table(local_timing)
-        )
+        write!(to, "{}", create_table(local_timing))
     }
 }
 
@@ -345,23 +363,35 @@ impl ThreadProfiler {
 
         let node = if let Some(current) = &self.current {
             let mut current_mut = current.borrow_mut();
+            // If 'name' is a child of 'current'
             if let Some(scope) = current_mut
                 .children
                 .iter()
                 .find(|s| s.borrow().name == name)
             {
                 scope.clone()
-            } else {
-                // Create new scope with 'current' as parent
-                let scope = ScopeProfiler::new(name, Rc::downgrade(current));
+            }
+            // If not, create new scope with 'current' as parent
+            else {
+                // Add visual indicator of the nesting
+                let scope = ScopeProfiler::new(
+                    name,
+                    Rc::downgrade(current),
+                    current_mut.hierarchy_depth + 1,
+                );
+
                 // Update current scope's children
                 current_mut.children.push(scope.clone());
                 scope
             }
-        } else if let Some(scope) = self.scopes.iter().find(|s| RefCell::borrow(s).name == name) {
+        }
+        // If 'name' is a root scope
+        else if let Some(scope) = self.scopes.iter().find(|s| RefCell::borrow(s).name == name) {
             scope.clone()
-        } else {
-            let scope = ScopeProfiler::new(name, std::rc::Weak::new());
+        }
+        // Else create a new root scope
+        else {
+            let scope = ScopeProfiler::new(name, std::rc::Weak::new(), 0);
             self.scopes.push(scope.clone());
             scope
         };
@@ -381,17 +411,36 @@ impl ThreadProfiler {
 
 #[cfg(feature = "enable")]
 impl ScopeProfiler {
-    fn new(name: std::borrow::Cow<'static, str>, parent: std::rc::Weak<RefCell<ScopeProfiler>>) -> Rc<RefCell<Self>> {
+    fn new(
+        name: std::borrow::Cow<'static, str>,
+        parent: std::rc::Weak<RefCell<ScopeProfiler>>,
+        hierarchy_depth: usize,
+    ) -> Rc<RefCell<Self>> {
         let s = Self {
             name,
             parent,
+            hierarchy_depth,
             timings: Vec::new(),
             children: Vec::new(),
         };
         Rc::new(RefCell::new(s))
     }
     fn to_timings(&self, total: std::time::Duration) -> Vec<Timing> {
-        let timing = Timing::from_durations(self.name.to_string(), &self.timings, total);
+        #[cfg(feature = "hierarchy")]
+        let name = {
+            // Add a padding equal to hierarchy depth
+            // If it's >= 20, add a numeric indicator and limit the padding
+            let spaces = if self.hierarchy_depth >= 20 {
+                let new = format!("(+{}) ", self.hierarchy_depth);
+                format!("{}{new}", " ".repeat(20usize.saturating_sub(new.len())))
+            } else {
+                " ".repeat(self.hierarchy_depth)
+            };
+            format!("{}{}", spaces, self.name) 
+        };
+        #[cfg(not(feature = "hierarchy"))]
+        let name = self.name.to_string();
+        let timing = Timing::from_durations(name, &self.timings, total);
         std::iter::once(timing)
             .chain(
                 self.children
@@ -411,13 +460,13 @@ impl Drop for ThreadProfiler {
 }
 
 /// Profiles the time it takes for the scope to end.
-/// 
+///
 /// If you want to get an explicit guard, use [`prof_guard!`].
 ///
 /// # Examples
 /// ```
 /// use miniprof::{prof, print_on_exit};
-/// 
+///
 /// fn sleep() {
 ///     // Profile `sleep`
 ///     prof!();
@@ -426,7 +475,7 @@ impl Drop for ThreadProfiler {
 ///
 /// fn main() {
 ///   print_on_exit!();
-/// 
+///
 ///   sleep();
 /// }
 /// ```
@@ -438,13 +487,13 @@ macro_rules! prof {
 }
 
 /// Returns a guard that will profile as long as it's alive.
-/// 
+///
 /// This will be until the scope ends or dropped manually.
 ///
 /// # Examples
 /// ```
 /// use miniprof::{prof_guard, print_on_exit};
-/// 
+///
 /// fn sleep(time: u64) {
 ///   // Must be saved into an explicit guard, or it will be dropped at the end of the `if` block
 ///   let _guard = if time < 100 {
@@ -457,7 +506,7 @@ macro_rules! prof {
 ///
 /// fn main() {
 ///   print_on_exit!();
-/// 
+///
 ///   sleep(50);
 ///   sleep(150);
 /// }
@@ -488,7 +537,7 @@ macro_rules! prof_guard {
 }
 
 /// Prints the profiled timings to stdout when `main` exits.
-/// 
+///
 /// Creates an implicit `main` profiling guard, which will profile the whole program's time.
 ///
 /// **Always put at the top of the `main` function to ensure it's dropped last.**
@@ -547,5 +596,5 @@ macro_rules! print_on_exit {
         let _guard = $crate::zz_private::MiniprofDrop::new(&mut _to, $ondrop);
         // Implicit guard for profiling the whole application
         $crate::prof!()
-    }
+    };
 }

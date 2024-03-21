@@ -1,7 +1,11 @@
 [package]
 name = "miniprof"
+description = "Scope-based single and multithreaded profiling"
+repository = "https://github.com/lyonsyonii/miniprof"
+keywords = ["instrumentation", "profiling", "performance", "multithreaded", "scope"]
 version = "0.1.0"
 edition = "2021"
+authors = ["Liam <liam@garriga.dev>"]
 
 [dependencies]
 comfy-table = { version = "7.1.0", default-features = false, optional = true }
@@ -11,7 +15,8 @@ rayon = { version = "1.9.0", default-features = false, optional = true }
 debug = 0
 
 [features]
-default = ["enable"]
+default = ["enable", "hierarchy"]
 enable = ["comfy-table"]
 rayon = ["dep:rayon"]
 comfy-table = ["dep:comfy-table"]
+hierarchy = []

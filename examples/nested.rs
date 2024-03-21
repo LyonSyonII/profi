@@ -4,6 +4,9 @@ fn main() {
     print_on_exit!();
 
     a();
+    b();
+    c();
+    d();
 }
 
 fn a() {

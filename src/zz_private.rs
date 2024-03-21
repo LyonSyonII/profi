@@ -1,6 +1,6 @@
 //! Contains all macro items, which should not be used by themselves.
 //!
-//! Always prefer the macros [`prof!`] and [`print_on_exit!`].
+//! Always prefer the macros [`prof!`], [`prof_guard!`] and [`print_on_exit!`].
 
 #[cfg_attr(feature = "enable", derive(Debug))]
 pub struct ScopeGuard {
@@ -68,6 +68,7 @@ impl ScopeGuard {
 
 impl Drop for ScopeGuard {
     fn drop(&mut self) {
+        #[cfg(feature = "enable")]
         let elapsed = self.instant.elapsed();
         #[cfg(feature = "enable")]
         crate::THREAD_PROFILER.with_borrow_mut(|thread| {
@@ -80,9 +81,9 @@ impl Drop for ScopeGuard {
 pub struct MiniprofDrop<W: std::io::Write, F: Fn(&mut W)>(W, F);
 
 impl<W, F> MiniprofDrop<W, F>
-where 
+where
     W: std::io::Write,
-    F: Fn(&mut W)
+    F: Fn(&mut W),
 {
     pub fn new(to: W, ondrop: F) -> Self {
         Self(to, ondrop)
@@ -90,10 +91,10 @@ where
 }
 
 #[cfg(feature = "enable")]
-impl<W, F> std::ops::Drop for MiniprofDrop<W, F> 
-where 
+impl<W, F> std::ops::Drop for MiniprofDrop<W, F>
+where
     W: std::io::Write,
-    F: Fn(&mut W)
+    F: Fn(&mut W),
 {
     fn drop(&mut self) {
         drop_threads();
