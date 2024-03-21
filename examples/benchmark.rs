@@ -17,7 +17,7 @@ fn main() {
     }
     {
         // Dynamic name
-        miniprof::prof!(fmt = "prof_{:?}", std::env::current_dir());
+        miniprof::prof!(fmt = "prof_{:?}", &() as *const () as u16);
     }
     {
         // With guard
@@ -27,7 +27,7 @@ fn main() {
     // Many times
     // 10..100_000
     let mut iter = 10;
-    for _ in 0..1 {
+    for _ in 0..5 {
         for _ in 0..iter {
             miniprof::prof!(fmt = "prof{iter}");
         }
