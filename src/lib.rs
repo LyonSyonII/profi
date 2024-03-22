@@ -245,8 +245,8 @@ struct GlobalProfiler {
 #[cfg(feature = "enable")]
 #[derive(Debug)]
 struct ThreadProfiler {
-    scopes: Vec<Rc<RefCell<ScopeProfiler>>>,
-    current: Option<Rc<RefCell<ScopeProfiler>>>,
+    scopes: Vec<ScopeProfiler>,
+    current: Vec<usize>,
     thread_start: std::time::Instant,
     thread_time: Option<std::time::Duration>,
 }
@@ -256,8 +256,7 @@ struct ThreadProfiler {
 struct ScopeProfiler {
     name: std::borrow::Cow<'static, str>,
     timings: Vec<std::time::Duration>,
-    parent: std::rc::Weak<RefCell<ScopeProfiler>>,
-    children: Vec<Rc<RefCell<ScopeProfiler>>>,
+    children: Vec<ScopeProfiler>,
     hierarchy_depth: usize,
 }
 
@@ -317,7 +316,7 @@ impl ThreadProfiler {
         *GLOBAL_PROFILER.threads.lock().unwrap() += 1;
         Self {
             scopes: Vec::new(),
-            current: None,
+            current: Vec::new(),
             thread_start: std::time::Instant::now(),
             thread_time: None,
         }
@@ -353,59 +352,66 @@ impl ThreadProfiler {
         let timings = self
             .scopes
             .iter()
-            .flat_map(|scope| scope.borrow().to_timings(total))
+            .flat_map(|scope| scope.to_timings(total))
             .collect();
         timings
     }
 
+    fn get_current(&mut self) -> Option<&mut ScopeProfiler> {
+        let mut current = self.scopes.get_mut(*self.current.first()?)?;
+        for i in self.current.get(1..).unwrap_or_default() {
+            current = current.children.get_mut(*i)?;
+        }
+        Some(current)
+    }
+
     fn push(&mut self, name: impl Into<std::borrow::Cow<'static, str>>) {
         let name = name.into();
-
-        let node = if let Some(current) = &self.current {
-            let mut current_mut = current.borrow_mut();
+        
+        if let Some(current) = self.get_current() {
             // If 'name' is a child of 'current'
-            if let Some(scope) = current_mut
+            if let Some(scope) = current
                 .children
                 .iter()
-                .find(|s| s.borrow().name == name)
+                .position(|s| s.name == name)
             {
-                scope.clone()
+                self.current.push(scope);
             }
             // If not, create new scope with 'current' as parent
             else {
                 // Add visual indicator of the nesting
                 let scope = ScopeProfiler::new(
                     name,
-                    Rc::downgrade(current),
-                    current_mut.hierarchy_depth + 1,
+                    current.hierarchy_depth + 1,
                 );
-
+                
                 // Update current scope's children
-                current_mut.children.push(scope.clone());
-                scope
+                current.children.push(scope);
+                let len = current.children.len()-1;
+                self.current.push(len);
             }
         }
         // If 'name' is a root scope
-        else if let Some(scope) = self.scopes.iter().find(|s| RefCell::borrow(s).name == name) {
-            scope.clone()
+        else if let Some(scope) = self.scopes.iter().position(|s| s.name == name) {
+            // self.current.clear();
+            self.current.push(scope);
         }
         // Else create a new root scope
         else {
-            let scope = ScopeProfiler::new(name, std::rc::Weak::new(), 0);
-            self.scopes.push(scope.clone());
-            scope
+            let scope = ScopeProfiler::new(name, 0);
+            self.scopes.push(scope);
+            // self.current.clear();
+            self.current.push(self.scopes.len()-1);
         };
-        // Update current to new scope
-        self.current = Some(node);
     }
 
     fn pop(&mut self, duration: std::time::Duration) {
-        let Some(current) = &self.current else {
+        let current = self.get_current();
+        let Some(current) = current else {
             panic!("[miniprof] 'pop' called and 'current' is 'None', this should never happen!")
         };
-        RefCell::borrow_mut(current).timings.push(duration);
-        let parent = current.borrow().parent.clone();
-        self.current = parent.upgrade();
+        current.timings.push(duration);
+        self.current.pop();
     }
 }
 
@@ -413,17 +419,14 @@ impl ThreadProfiler {
 impl ScopeProfiler {
     fn new(
         name: std::borrow::Cow<'static, str>,
-        parent: std::rc::Weak<RefCell<ScopeProfiler>>,
         hierarchy_depth: usize,
-    ) -> Rc<RefCell<Self>> {
-        let s = Self {
+    ) -> Self {
+        Self {
             name,
-            parent,
             hierarchy_depth,
             timings: Vec::new(),
             children: Vec::new(),
-        };
-        Rc::new(RefCell::new(s))
+        }
     }
     fn to_timings(&self, total: std::time::Duration) -> Vec<Timing> {
         #[cfg(feature = "hierarchy")]
@@ -445,7 +448,7 @@ impl ScopeProfiler {
             .chain(
                 self.children
                     .iter()
-                    .flat_map(|child| child.borrow().to_timings(total)),
+                    .flat_map(|child| child.to_timings(total)),
             )
             .collect()
     }
