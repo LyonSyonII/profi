@@ -1,5 +1,5 @@
 fn main() {
-    miniprof::print_on_exit!();
+    // miniprof::print_on_exit!();
 
     // Benchmark how much time it takes for `prof!` to create and drop
 
@@ -45,5 +45,5 @@ fn main() {
             nest(depth + 1, limit);
         }
     }
-    nest(0, 20);
+    nest(0, 5);
 }
