@@ -2,7 +2,13 @@ fn main() {
     profi::print_on_exit!();
 
     // Benchmark how much time it takes for `prof!` to create and drop
+    for _ in 0..1000 {
+        bench()
+    }
 
+}
+
+fn bench() {
     {
         // Get function name
         profi::prof!();
@@ -39,7 +45,7 @@ fn main() {
         }
         iter *= 10;
     }
-
+    
     // Highly nested
     fn nest(depth: usize, limit: usize) {
         if depth > limit {

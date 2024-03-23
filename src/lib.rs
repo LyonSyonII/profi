@@ -144,6 +144,7 @@ macro_rules! meta_prof {
 
 pub mod zz_private;
 
+use std::hash::BuildHasher;
 #[allow(unused)]
 use std::{cell::RefCell, rc::Rc};
 
@@ -266,7 +267,7 @@ struct GlobalProfiler {
 #[cfg(feature = "enable")]
 #[derive(Debug)]
 struct ThreadProfiler {
-    scopes: Vec<ScopeProfiler>,
+    scopes: indexmap::IndexMap<std::borrow::Cow<'static, str>, ScopeProfiler, ahash::RandomState>,
     current: Vec<usize>,
     thread_start: minstant::Instant,
     thread_time: Option<std::time::Duration>,
@@ -277,7 +278,7 @@ struct ThreadProfiler {
 struct ScopeProfiler {
     name: std::borrow::Cow<'static, str>,
     timings: Vec<std::time::Duration>,
-    children: Vec<ScopeProfiler>,
+    children: indexmap::IndexMap<std::borrow::Cow<'static, str>, ScopeProfiler, ahash::RandomState>,
     hierarchy_depth: usize,
 }
 
@@ -323,7 +324,7 @@ impl GlobalProfiler {
             }
         }
         let total_cpu = local_timing.iter().map(|t| t.total_cpu).sum();
-
+        
         local_timing
             .iter_mut()
             .for_each(|t| t.update_percent(total_app, total_cpu));
@@ -336,7 +337,7 @@ impl ThreadProfiler {
     fn new() -> Self {
         *GLOBAL_PROFILER.threads.lock().unwrap() += 1;
         Self {
-            scopes: Vec::new(),
+            scopes: indexmap::IndexMap::with_hasher(ahash::RandomState::new()),
             current: Vec::new(),
             thread_start: minstant::Instant::now(),
             thread_time: None,
@@ -372,49 +373,47 @@ impl ThreadProfiler {
         let total = self.get_thread_time();
         let timings = self
             .scopes
-            .iter()
+            .values()
             .flat_map(|scope| scope.to_timings(total))
             .collect();
         timings
     }
 
     fn get_current(&mut self) -> Option<&mut ScopeProfiler> {
-        let mut current = self.scopes.get_mut(*self.current.first()?)?;
+        let (_, mut current) = self.scopes.get_index_mut(*self.current.first()?)?;
         for i in self.current.get(1..).unwrap_or_default() {
-            current = current.children.get_mut(*i)?;
+            (_, current) = current.children.get_index_mut(*i)?;
         }
         Some(current)
     }
 
     fn push(&mut self, name: impl Into<std::borrow::Cow<'static, str>>) {
-        let name = name.into();
+        let name: std::borrow::Cow<'static, str> = name.into();
 
         if let Some(current) = self.get_current() {
             // If 'name' is a child of 'current'
-            if let Some(scope) = current.children.iter().position(|s| s.name == name) {
-                self.current.push(scope);
+            if let Some((idx, _, _)) = current.children.get_full(&name) {
+                self.current.push(idx);
             }
             // If not, create new scope with 'current' as parent
             else {
                 // Add visual indicator of the nesting
-                let scope = ScopeProfiler::new(name, current.hierarchy_depth + 1);
+                let scope = ScopeProfiler::new(name.clone(), current.hierarchy_depth + 1);
 
                 // Update current scope's children
-                current.children.push(scope);
+                current.children.insert(name, scope);
                 let len = current.children.len() - 1;
                 self.current.push(len);
             }
+            return;
         }
-        // If 'name' is a root scope
-        else if let Some(scope) = self.scopes.iter().position(|s| s.name == name) {
-            self.current.push(scope);
-        }
-        // Else create a new root scope
-        else {
-            let scope = ScopeProfiler::new(name, 0);
-            self.scopes.push(scope);
+        if let Some((idx, _, _)) = self.scopes.get_full(&name) {
+            self.current.push(idx);
+        } else {
+            let scope = ScopeProfiler::new(name.clone(), 0);
+            self.scopes.insert(name, scope);
             self.current.push(self.scopes.len() - 1);
-        };
+        }
     }
 
     fn pop(&mut self, duration: std::time::Duration) {
@@ -434,7 +433,7 @@ impl ScopeProfiler {
             name,
             hierarchy_depth,
             timings: Vec::new(),
-            children: Vec::new(),
+            children: indexmap::IndexMap::with_hasher(ahash::RandomState::new()),
         }
     }
     fn to_timings(&self, total: std::time::Duration) -> Vec<Timing> {
@@ -456,7 +455,7 @@ impl ScopeProfiler {
         std::iter::once(timing)
             .chain(
                 self.children
-                    .iter()
+                    .values()
                     .flat_map(|child| child.to_timings(total)),
             )
             .collect()
