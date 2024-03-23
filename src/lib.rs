@@ -393,14 +393,12 @@ impl ThreadProfiler {
         }
         // If 'name' is a root scope
         else if let Some(scope) = self.scopes.iter().position(|s| s.name == name) {
-            // self.current.clear();
             self.current.push(scope);
         }
         // Else create a new root scope
         else {
             let scope = ScopeProfiler::new(name, 0);
             self.scopes.push(scope);
-            // self.current.clear();
             self.current.push(self.scopes.len()-1);
         };
     }

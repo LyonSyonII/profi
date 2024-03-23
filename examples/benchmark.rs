@@ -23,8 +23,13 @@ fn main() {
         // With guard
         let _guard = miniprof::prof_guard!(prof_guard);
     }
-
-    // TODO: Fix error with new hierarchy feature
+    {
+        for _ in 0..1000 {
+            miniprof::prof!(self);
+            miniprof::prof!(_self);
+        }
+    }
+    
     // Many times
     // 10..100_000
     let mut iter = 10;
