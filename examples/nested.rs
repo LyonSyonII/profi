@@ -1,4 +1,4 @@
-use miniprof::{print_on_exit, prof};
+use profi::{print_on_exit, prof};
 
 fn main() {
     print_on_exit!();
@@ -10,7 +10,7 @@ fn main() {
 }
 
 fn a() {
-    // If `prof` is called without any argument, `miniprof` will do its best to get the function's name
+    // If `prof` is called without any argument, `profi` will do its best to get the function's name
     prof!();
     std::thread::sleep(std::time::Duration::from_millis(10));
 

@@ -1,4 +1,4 @@
-use miniprof::{print_on_exit, prof};
+use profi::{print_on_exit, prof};
 
 fn main() -> std::io::Result<()> {
     let mut file = std::fs::File::create("./print_to_file_results.txt")?;

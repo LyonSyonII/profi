@@ -5,7 +5,7 @@
 #[cfg_attr(feature = "enable", derive(Debug))]
 pub struct ScopeGuard {
     #[cfg(feature = "enable")]
-    instant: std::time::Instant,
+    instant: minstant::Instant,
 }
 
 #[inline(always)]
@@ -57,17 +57,21 @@ impl ScopeGuard {
     #[inline(always)]
     #[allow(unused)]
     pub fn new(name: impl Into<std::borrow::Cow<'static, str>>) -> Self {
+        meta_prof!(scopenew);
+        
         #[cfg(feature = "enable")]
         crate::THREAD_PROFILER.with_borrow_mut(|thread| thread.push(name));
         Self {
             #[cfg(feature = "enable")]
-            instant: std::time::Instant::now(),
+            instant: minstant::Instant::now(),
         }
     }
 }
 
 impl Drop for ScopeGuard {
     fn drop(&mut self) {
+        meta_prof!(scopedrop);
+
         #[cfg(feature = "enable")]
         let elapsed = self.instant.elapsed();
         #[cfg(feature = "enable")]
@@ -78,9 +82,9 @@ impl Drop for ScopeGuard {
 }
 
 #[allow(dead_code)]
-pub struct MiniprofDrop<W: std::io::Write, F: Fn(&mut W)>(W, F);
+pub struct ProfiDrop<W: std::io::Write, F: Fn(&mut W)>(W, F);
 
-impl<W, F> MiniprofDrop<W, F>
+impl<W, F> ProfiDrop<W, F>
 where
     W: std::io::Write,
     F: Fn(&mut W),
@@ -91,7 +95,7 @@ where
 }
 
 #[cfg(feature = "enable")]
-impl<W, F> std::ops::Drop for MiniprofDrop<W, F>
+impl<W, F> std::ops::Drop for ProfiDrop<W, F>
 where
     W: std::io::Write,
     F: Fn(&mut W),

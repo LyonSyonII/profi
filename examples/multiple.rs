@@ -1,4 +1,4 @@
-use miniprof::{print_on_exit, prof, prof_guard};
+use profi::{print_on_exit, prof, prof_guard};
 
 fn wait_for_a_bit() {
     prof!(wait_for_a_bit);
