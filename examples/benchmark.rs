@@ -40,8 +40,10 @@ fn main() {
         if depth > limit {
             return;
         }
-        miniprof::prof!(fmt = "depth = {depth}");
-        nest(depth + 1, limit);
+        for _ in 0..3 {
+            miniprof::prof!(fmt = "depth = {depth}");
+            nest(depth + 1, limit);
+        }
     }
     nest(0, 20);
 }
