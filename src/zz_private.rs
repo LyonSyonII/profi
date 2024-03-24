@@ -78,9 +78,9 @@ impl Drop for ScopeGuard {
 }
 
 #[allow(dead_code)]
-pub struct MiniprofDrop<W: std::io::Write, F: Fn(&mut W)>(W, F);
+pub struct profiDrop<W: std::io::Write, F: Fn(&mut W)>(W, F);
 
-impl<W, F> MiniprofDrop<W, F>
+impl<W, F> profiDrop<W, F>
 where
     W: std::io::Write,
     F: Fn(&mut W),
@@ -91,7 +91,7 @@ where
 }
 
 #[cfg(feature = "enable")]
-impl<W, F> std::ops::Drop for MiniprofDrop<W, F>
+impl<W, F> std::ops::Drop for profiDrop<W, F>
 where
     W: std::io::Write,
     F: Fn(&mut W),

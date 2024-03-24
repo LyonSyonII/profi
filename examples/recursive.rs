@@ -1,4 +1,4 @@
-use miniprof::print_on_exit;
+use profi::print_on_exit;
 
 fn main() {
     print_on_exit!();
@@ -8,8 +8,8 @@ fn main() {
             return;
         }
         // As you can see, each instance of "rec" is treated as a different measurement
-        // This is because `miniprof` is hierarchical, and in this case
-        miniprof::prof!();
+        // This is because `profi` is hierarchical, and in this case
+        profi::prof!();
         rec(depth + 1, limit);
     }
     rec(0, 5);

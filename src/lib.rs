@@ -3,22 +3,22 @@
 //! Record the time it takes for a scope to end and print the timings when the program exits.
 //!
 //! Each measurement has an overhead of ~16-29ns, so it shouldn't impact benchmarks.  
-//! Run the [benchmarks](https://github.com/LyonSyonII/miniprof/blob/main/examples/benchmark.rs) example to see what's the overhead on your machine.
+//! Run the [benchmarks](https://github.com/LyonSyonII/profi/blob/main/examples/benchmark.rs) example to see what's the overhead on your machine.
 //!
 //! # Setup
 //!
-//! `miniprof` is controlled by the `enable` feature, which is active by default.  
+//! `profi` is controlled by the `enable` feature, which is active by default.  
 //! When disabled, all macros and methods will become no-ops, resulting in zero impact on your code.
 //!
-//! To disable it, add `default-features = false` to the `miniprof` dependency in your `Cargo.toml`.
+//! To disable it, add `default-features = false` to the `profi` dependency in your `Cargo.toml`.
 //!
 //! For convenience, you can also add a custom feature:
 //! ```toml
 //! [dependencies]
-//! miniprof = { version = "*", default-features = false }
+//! profi = { version = "*", default-features = false }
 //!
 //! [features]
-//! prof = ["miniprof/enable"]
+//! prof = ["profi/enable"]
 //! ```
 //!
 //! And run it with `cargo run --release --features prof`
@@ -27,7 +27,7 @@
 //!
 //! ## Basic Usage
 //! ```rust
-//! use miniprof::{prof, print_on_exit};
+//! use profi::{prof, print_on_exit};
 //!
 //! fn main() {
 //!  // Prints the timings to stdout when the program exits
@@ -50,7 +50,7 @@
 //!
 //! ## Loops
 //! ```rust
-//! use miniprof::{prof, print_on_exit};
+//! use profi::{prof, print_on_exit};
 //!
 //! fn main() {
 //!   print_on_exit!();
@@ -73,7 +73,7 @@
 //!
 //! ## Multiple threads
 //! ```rust
-//! use miniprof::{print_on_exit, prof_guard};
+//! use profi::{print_on_exit, prof_guard};
 //!
 //! fn do_work(i: usize) {
 //!     for _ in 0..100 {
@@ -401,7 +401,7 @@ impl ThreadProfiler {
 
     fn pop(&mut self, duration: std::time::Duration) {
         let Some(current) = &self.current else {
-            panic!("[miniprof] 'pop' called and 'current' is 'None', this should never happen!")
+            panic!("[profi] 'pop' called and 'current' is 'None', this should never happen!")
         };
         RefCell::borrow_mut(current).timings.push(duration);
         let parent = current.borrow().parent.clone();
@@ -465,7 +465,7 @@ impl Drop for ThreadProfiler {
 ///
 /// # Examples
 /// ```
-/// use miniprof::{prof, print_on_exit};
+/// use profi::{prof, print_on_exit};
 ///
 /// fn sleep() {
 ///     // Profile `sleep`
@@ -492,7 +492,7 @@ macro_rules! prof {
 ///
 /// # Examples
 /// ```
-/// use miniprof::{prof_guard, print_on_exit};
+/// use profi::{prof_guard, print_on_exit};
 ///
 /// fn sleep(time: u64) {
 ///   // Must be saved into an explicit guard, or it will be dropped at the end of the `if` block
@@ -548,7 +548,7 @@ macro_rules! prof_guard {
 ///
 /// # Examples
 /// ```
-/// use miniprof::{prof, print_on_exit};
+/// use profi::{prof, print_on_exit};
 ///
 /// fn main() {
 ///   print_on_exit!();
@@ -558,7 +558,7 @@ macro_rules! prof_guard {
 ///
 /// Print to stderr instead of stdout:
 /// ```
-/// use miniprof::{prof, print_on_exit};
+/// use profi::{prof, print_on_exit};
 ///
 /// fn main() {
 ///   print_on_exit!(stderr);
@@ -568,7 +568,7 @@ macro_rules! prof_guard {
 ///
 /// Print to a file:
 /// ```
-/// use miniprof::{prof, print_on_exit};
+/// use profi::{prof, print_on_exit};
 ///
 /// fn main() {
 ///   let mut file = Vec::<u8>::new();
@@ -593,7 +593,7 @@ macro_rules! print_on_exit {
     };
     (to = $to:expr, ondrop = $ondrop:expr) => {
         let mut _to = $to;
-        let _guard = $crate::zz_private::MiniprofDrop::new(&mut _to, $ondrop);
+        let _guard = $crate::zz_private::profiDrop::new(&mut _to, $ondrop);
         // Implicit guard for profiling the whole application
         $crate::prof!()
     };

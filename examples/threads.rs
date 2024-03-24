@@ -1,4 +1,4 @@
-use miniprof::{print_on_exit, prof_guard};
+use profi::{print_on_exit, prof_guard};
 
 fn do_work(i: usize) {
     for _ in 0..100 {

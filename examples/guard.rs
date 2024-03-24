@@ -1,4 +1,4 @@
-use miniprof::{print_on_exit, prof_guard};
+use profi::{print_on_exit, prof_guard};
 
 fn sleep(time: u64) {
     // Must be saved into an explicit guard, or it will be dropped at the end of the `if` block

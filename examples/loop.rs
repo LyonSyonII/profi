@@ -1,4 +1,4 @@
-use miniprof::{print_on_exit, prof};
+use profi::{print_on_exit, prof};
 
 fn main() {
     print_on_exit!();

@@ -1,46 +1,58 @@
 fn main() {
-    // miniprof::print_on_exit!();
+    profi::print_on_exit!();
 
     // Benchmark how much time it takes for `prof!` to create and drop
+    for _ in 0..1000 {
+        bench()
+    }
 
+}
+
+fn bench() {
     {
         // Get function name
-        miniprof::prof!();
+        profi::prof!();
     }
     {
         // Given str
-        miniprof::prof!("prof_given_str");
+        profi::prof!("prof_given_str");
     }
     {
         // Given name
-        miniprof::prof!(prof_given_name);
+        profi::prof!(prof_given_name);
     }
     {
         // Dynamic name
-        miniprof::prof!(fmt = "prof_{:?}", &() as *const () as u16);
+        profi::prof!(fmt = "prof_{:?}", &() as *const () as u16);
     }
     {
         // With guard
-        let _guard = miniprof::prof_guard!(prof_guard);
+        let _guard = profi::prof_guard!(prof_guard);
     }
-    
+    {
+        for _ in 0..1000 {
+            profi::prof!(self);
+            profi::prof!(_self);
+        }
+    }
+
     // Many times
     // 10..100_000
     let mut iter = 10;
     for _ in 0..5 {
         for _ in 0..iter {
-            miniprof::prof!(fmt = "prof{iter}");
+            profi::prof!(fmt = "prof{iter}");
         }
         iter *= 10;
     }
-
+    
     // Highly nested
     fn nest(depth: usize, limit: usize) {
         if depth > limit {
             return;
         }
         for _ in 0..3 {
-            miniprof::prof!(fmt = "depth = {depth}");
+            profi::prof!(fmt = "depth = {depth}");
             nest(depth + 1, limit);
         }
     }
