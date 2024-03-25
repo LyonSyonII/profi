@@ -304,6 +304,9 @@ impl GlobalProfiler {
     }
 
     fn print_timings(&self, mut to: impl std::io::Write) -> std::io::Result<()> {
+        dbg!(THREAD_PROFILER.with_borrow(|t| t.get_thread_time()));
+        return Ok(());
+
         let mut measures = 0;
         let (mut total_app, mut local_timing) = THREAD_PROFILER.with_borrow(|thread| {
             measures += thread.num_measures();
