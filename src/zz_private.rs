@@ -25,7 +25,7 @@ pub fn init_profiler() {
 fn drop_threads() {
     #[cfg(feature = "enable")]
     crate::measure::THREAD_PROFILER.with_borrow_mut(|t| t.set_thread_time());
-
+    
     #[cfg(all(feature = "rayon", feature = "enable"))]
     {
         // Drop threads manually, as `rayon` never drops them
