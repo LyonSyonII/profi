@@ -50,6 +50,7 @@ impl GlobalProfiler {
     }
 
     pub(crate) fn print_timings(&self, mut to: impl std::io::Write) -> std::io::Result<()> {
+        dbg!(THREAD_PROFILER.with_borrow(|thread| thread.get_thread_time()));
         return Ok(());
         let mut measurements = THREAD_PROFILER.with_borrow(|thread| thread.measurements.clone());
         { 
