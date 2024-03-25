@@ -106,9 +106,9 @@
 //! ╞═══════════╪════════════════════╪═══════════╪════════════╪══════════╪══════════════╪═══════╡
 //! │ main      ┆ 100.00%            ┆ 1.01s     ┆      -     ┆     -    ┆       -      ┆     1 │
 //! ├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
-//! │ 6 first   ┆ 99.98%             ┆ 1.01s     ┆ 54.55%     ┆ 6.04s    ┆ 10.08ms/call ┆   600 │
+//! │  6 first  ┆ 99.98%             ┆ 1.01s     ┆ 54.55%     ┆ 6.04s    ┆ 10.08ms/call ┆   600 │
 //! ├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
-//! │ 4 last    ┆ 99.96%             ┆ 1.01s     ┆ 36.36%     ┆ 4.03s    ┆ 10.07ms/call ┆   400 │
+//! │  4 last   ┆ 99.96%             ┆ 1.01s     ┆ 36.36%     ┆ 4.03s    ┆ 10.07ms/call ┆   400 │
 //! └───────────┴────────────────────┴───────────┴────────────┴──────────┴──────────────┴───────┘
 //! ```
 //! "CPU Time" is the combined time all threads have spent on that scope.  
@@ -117,9 +117,31 @@
 //!
 //! # Features
 //! - `enable`: Activates the profiling, if not active all macros become no-ops.
-//! - `hierarchy`: Shows when a `prof!` is the child of another with a visual hierarchy. Can be expensive, disable it if you're measuring very precisely.
+//! - `hierarchy`: Shows when a `prof!` is the child of another with a visual hierarchy.
 #![allow(clippy::needless_doctest_main)]
 #![deny(unsafe_code)]
+
+/// Allows profiling the profiling methods
+#[allow(unused)]
+macro_rules! meta_prof {
+    ($name:ident) => {
+        #[cfg(feature = "metaprof")]
+        struct MetaProf {
+            instant: minstant::Instant,
+        }
+        #[cfg(feature = "metaprof")]
+        impl Drop for MetaProf {
+            fn drop(&mut self) {
+                let $name = self.instant.elapsed();
+                dbg!($name);
+            }
+        }
+        #[cfg(feature = "metaprof")]
+        let _guard = MetaProf {
+            instant: minstant::Instant::now(),
+        };
+    };
+}
 
 pub mod zz_private;
 
@@ -155,7 +177,7 @@ fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
         "Average time",
         "Calls",
     ]);
-
+    
     let empty = || comfy_table::Cell::new("-").set_alignment(comfy_table::CellAlignment::Center);
 
     for timing in timings {
@@ -240,24 +262,24 @@ struct GlobalProfiler {
     threads: std::sync::Mutex<usize>,
     cvar: std::sync::Condvar,
     timings: std::sync::RwLock<Vec<(std::time::Duration, Vec<Timing>)>>,
+    #[cfg(feature = "metaprof")]
+    measures: std::sync::atomic::AtomicUsize
 }
 
 #[cfg(feature = "enable")]
 #[derive(Debug)]
 struct ThreadProfiler {
-    scopes: Vec<Rc<RefCell<ScopeProfiler>>>,
-    current: Option<Rc<RefCell<ScopeProfiler>>>,
-    thread_start: std::time::Instant,
+    scopes: indexmap::IndexMap<std::borrow::Cow<'static, str>, ScopeProfiler, ahash::RandomState>,
+    current: Vec<usize>,
+    thread_start: minstant::Instant,
     thread_time: Option<std::time::Duration>,
 }
 
 #[cfg(feature = "enable")]
 #[derive(Debug)]
 struct ScopeProfiler {
-    name: std::borrow::Cow<'static, str>,
     timings: Vec<std::time::Duration>,
-    parent: std::rc::Weak<RefCell<ScopeProfiler>>,
-    children: Vec<Rc<RefCell<ScopeProfiler>>>,
+    children: indexmap::IndexMap<std::borrow::Cow<'static, str>, ScopeProfiler, ahash::RandomState>,
     hierarchy_depth: usize,
 }
 
@@ -276,11 +298,15 @@ impl GlobalProfiler {
             timings: std::sync::RwLock::new(Vec::new()),
             threads: std::sync::Mutex::new(0),
             cvar: std::sync::Condvar::new(),
+            #[cfg(feature = "metaprof")]
+            measures: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 
     fn print_timings(&self, mut to: impl std::io::Write) -> std::io::Result<()> {
+        let mut measures = 0;
         let (mut total_app, mut local_timing) = THREAD_PROFILER.with_borrow(|thread| {
+            measures += thread.num_measures();
             let timings = thread.to_timings();
             (
                 // Get first time if `print_on_exit!` has been used, or compute the thread time
@@ -291,6 +317,9 @@ impl GlobalProfiler {
                 timings,
             )
         });
+        #[cfg(feature = "metaprof")]
+        let _ = 5;
+
         let timings = &self.timings.read().unwrap();
         for (thread_total, thread) in timings.iter() {
             total_app = std::cmp::max(total_app, *thread_total);
@@ -303,6 +332,11 @@ impl GlobalProfiler {
             }
         }
         let total_cpu = local_timing.iter().map(|t| t.total_cpu).sum();
+        #[cfg(feature = "metaprof")]
+        {
+            println!("measures: {}", measures);
+            println!("timings: {}", local_timing.len());
+        }
 
         local_timing
             .iter_mut()
@@ -316,9 +350,9 @@ impl ThreadProfiler {
     fn new() -> Self {
         *GLOBAL_PROFILER.threads.lock().unwrap() += 1;
         Self {
-            scopes: Vec::new(),
-            current: None,
-            thread_start: std::time::Instant::now(),
+            scopes: indexmap::IndexMap::with_hasher(ahash::RandomState::new()),
+            current: Vec::new(),
+            thread_start: minstant::Instant::now(),
             thread_time: None,
         }
     }
@@ -332,6 +366,8 @@ impl ThreadProfiler {
                 .write()
                 .unwrap()
                 .push((self.thread_time.unwrap(), timings));
+            #[cfg(feature = "metaprof")]
+            GLOBAL_PROFILER.measures.fetch_add(self.num_measures(), std::sync::atomic::Ordering::AcqRel);
         }
         *GLOBAL_PROFILER.threads.lock().unwrap() -= 1;
         GLOBAL_PROFILER.cvar.notify_one()
@@ -347,85 +383,83 @@ impl ThreadProfiler {
             None => self.thread_start.elapsed(),
         }
     }
+    
+    fn num_measures(&self) -> usize {
+        self.scopes.values().fold(0, |acc, scope| {
+            fn measures(scope: &ScopeProfiler) -> usize {
+                scope.children.values().fold(scope.timings.len(), |acc, scope| acc + measures(scope))
+            }
+            acc + measures(scope)
+        })
+    }
 
     fn to_timings(&self) -> Vec<Timing> {
         let total = self.get_thread_time();
         let timings = self
             .scopes
             .iter()
-            .flat_map(|scope| scope.borrow().to_timings(total))
+            .flat_map(|(name, scope)| scope.to_timings(name, total))
             .collect();
         timings
     }
 
-    fn push(&mut self, name: impl Into<std::borrow::Cow<'static, str>>) {
-        let name = name.into();
+    fn get_current(&mut self) -> Option<&mut ScopeProfiler> {
+        let (_, mut current) = self.scopes.get_index_mut(*self.current.first()?)?;
+        for i in self.current.get(1..).unwrap_or_default() {
+            (_, current) = current.children.get_index_mut(*i)?;
+        }
+        Some(current)
+    }
 
-        let node = if let Some(current) = &self.current {
-            let mut current_mut = current.borrow_mut();
+    fn push(&mut self, name: impl Into<std::borrow::Cow<'static, str>>) {
+        let name: std::borrow::Cow<'static, str> = name.into();
+
+        if let Some(current) = self.get_current() {
             // If 'name' is a child of 'current'
-            if let Some(scope) = current_mut
-                .children
-                .iter()
-                .find(|s| s.borrow().name == name)
-            {
-                scope.clone()
+            if let Some((idx, _, _)) = current.children.get_full(&name) {
+                self.current.push(idx);
             }
             // If not, create new scope with 'current' as parent
             else {
                 // Add visual indicator of the nesting
-                let scope = ScopeProfiler::new(
-                    name,
-                    Rc::downgrade(current),
-                    current_mut.hierarchy_depth + 1,
-                );
+                let scope = ScopeProfiler::new(current.hierarchy_depth + 1);
 
                 // Update current scope's children
-                current_mut.children.push(scope.clone());
-                scope
+                current.children.insert(name, scope);
+                let len = current.children.len() - 1;
+                self.current.push(len);
             }
+            return;
         }
-        // If 'name' is a root scope
-        else if let Some(scope) = self.scopes.iter().find(|s| RefCell::borrow(s).name == name) {
-            scope.clone()
+        if let Some((idx, _, _)) = self.scopes.get_full(&name) {
+            self.current.push(idx);
+        } else {
+            let scope = ScopeProfiler::new(0);
+            self.scopes.insert(name, scope);
+            self.current.push(self.scopes.len() - 1);
         }
-        // Else create a new root scope
-        else {
-            let scope = ScopeProfiler::new(name, std::rc::Weak::new(), 0);
-            self.scopes.push(scope.clone());
-            scope
-        };
-        // Update current to new scope
-        self.current = Some(node);
     }
 
     fn pop(&mut self, duration: std::time::Duration) {
-        let Some(current) = &self.current else {
+        let current = self.get_current();
+        let Some(current) = current else {
             panic!("[profi] 'pop' called and 'current' is 'None', this should never happen!")
         };
-        RefCell::borrow_mut(current).timings.push(duration);
-        let parent = current.borrow().parent.clone();
-        self.current = parent.upgrade();
+        current.timings.push(duration);
+        self.current.pop();
     }
 }
 
 #[cfg(feature = "enable")]
 impl ScopeProfiler {
-    fn new(
-        name: std::borrow::Cow<'static, str>,
-        parent: std::rc::Weak<RefCell<ScopeProfiler>>,
-        hierarchy_depth: usize,
-    ) -> Rc<RefCell<Self>> {
-        let s = Self {
-            name,
-            parent,
+    fn new(hierarchy_depth: usize) -> Self {
+        Self {
             hierarchy_depth,
             timings: Vec::new(),
-            children: Vec::new(),
-        };
-        Rc::new(RefCell::new(s))
+            children: indexmap::IndexMap::with_hasher(ahash::RandomState::new()),
+        }
     }
-    fn to_timings(&self, total: std::time::Duration) -> Vec<Timing> {
+    fn to_timings(&self, name: impl AsRef<str>, total: std::time::Duration) -> Vec<Timing> {
         #[cfg(feature = "hierarchy")]
         let name = {
             // Add a padding equal to hierarchy depth
@@ -436,7 +470,7 @@ impl ScopeProfiler {
             } else {
                 " ".repeat(self.hierarchy_depth)
             };
-            format!("{}{}", spaces, self.name) 
+            format!("{}{}", spaces, name.as_ref())
         };
         #[cfg(not(feature = "hierarchy"))]
         let name = self.name.to_string();
@@ -445,7 +479,7 @@ impl ScopeProfiler {
             .chain(
                 self.children
                     .iter()
-                    .flat_map(|child| child.borrow().to_timings(total)),
+                    .flat_map(|(name, child)| child.to_timings(name, total)),
             )
             .collect()
     }
@@ -593,7 +627,7 @@ macro_rules! print_on_exit {
     };
     (to = $to:expr, ondrop = $ondrop:expr) => {
         let mut _to = $to;
-        let _guard = $crate::zz_private::profiDrop::new(&mut _to, $ondrop);
+        let _guard = $crate::zz_private::ProfiDrop::new(&mut _to, $ondrop);
         // Implicit guard for profiling the whole application
         $crate::prof!()
     };
