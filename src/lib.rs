@@ -122,6 +122,7 @@
 #![deny(unsafe_code)]
 
 /// Allows profiling the profiling methods
+#[allow(unused)]
 macro_rules! meta_prof {
     ($name:ident) => {
         #[cfg(feature = "metaprof")]
@@ -144,7 +145,6 @@ macro_rules! meta_prof {
 
 pub mod zz_private;
 
-use std::hash::BuildHasher;
 #[allow(unused)]
 use std::{cell::RefCell, rc::Rc};
 
@@ -177,7 +177,7 @@ fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
         "Average time",
         "Calls",
     ]);
-
+    
     let empty = || comfy_table::Cell::new("-").set_alignment(comfy_table::CellAlignment::Center);
 
     for timing in timings {
@@ -262,6 +262,8 @@ struct GlobalProfiler {
     threads: std::sync::Mutex<usize>,
     cvar: std::sync::Condvar,
     timings: std::sync::RwLock<Vec<(std::time::Duration, Vec<Timing>)>>,
+    #[cfg(feature = "metaprof")]
+    measures: std::sync::atomic::AtomicUsize
 }
 
 #[cfg(feature = "enable")]
@@ -276,7 +278,6 @@ struct ThreadProfiler {
 #[cfg(feature = "enable")]
 #[derive(Debug)]
 struct ScopeProfiler {
-    name: std::borrow::Cow<'static, str>,
     timings: Vec<std::time::Duration>,
     children: indexmap::IndexMap<std::borrow::Cow<'static, str>, ScopeProfiler, ahash::RandomState>,
     hierarchy_depth: usize,
@@ -297,11 +298,15 @@ impl GlobalProfiler {
             timings: std::sync::RwLock::new(Vec::new()),
             threads: std::sync::Mutex::new(0),
             cvar: std::sync::Condvar::new(),
+            #[cfg(feature = "metaprof")]
+            measures: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 
     fn print_timings(&self, mut to: impl std::io::Write) -> std::io::Result<()> {
+        let mut measures = 0;
         let (mut total_app, mut local_timing) = THREAD_PROFILER.with_borrow(|thread| {
+            measures += thread.num_measures();
             let timings = thread.to_timings();
             (
                 // Get first time if `print_on_exit!` has been used, or compute the thread time
@@ -312,6 +317,9 @@ impl GlobalProfiler {
                 timings,
             )
         });
+        #[cfg(feature = "metaprof")]
+        let _ = 5;
+
         let timings = &self.timings.read().unwrap();
         for (thread_total, thread) in timings.iter() {
             total_app = std::cmp::max(total_app, *thread_total);
@@ -324,7 +332,12 @@ impl GlobalProfiler {
             }
         }
         let total_cpu = local_timing.iter().map(|t| t.total_cpu).sum();
-        
+        #[cfg(feature = "metaprof")]
+        {
+            println!("measures: {}", measures);
+            println!("timings: {}", local_timing.len());
+        }
+
         local_timing
             .iter_mut()
             .for_each(|t| t.update_percent(total_app, total_cpu));
@@ -353,6 +366,8 @@ impl ThreadProfiler {
                 .write()
                 .unwrap()
                 .push((self.thread_time.unwrap(), timings));
+            #[cfg(feature = "metaprof")]
+            GLOBAL_PROFILER.measures.fetch_add(self.num_measures(), std::sync::atomic::Ordering::AcqRel);
         }
         *GLOBAL_PROFILER.threads.lock().unwrap() -= 1;
         GLOBAL_PROFILER.cvar.notify_one()
@@ -368,13 +383,22 @@ impl ThreadProfiler {
             None => self.thread_start.elapsed(),
         }
     }
+    
+    fn num_measures(&self) -> usize {
+        self.scopes.values().fold(0, |acc, scope| {
+            fn measures(scope: &ScopeProfiler) -> usize {
+                scope.children.values().fold(scope.timings.len(), |acc, scope| acc + measures(scope))
+            }
+            acc + measures(scope)
+        })
+    }
 
     fn to_timings(&self) -> Vec<Timing> {
         let total = self.get_thread_time();
         let timings = self
             .scopes
-            .values()
-            .flat_map(|scope| scope.to_timings(total))
+            .iter()
+            .flat_map(|(name, scope)| scope.to_timings(name, total))
             .collect();
         timings
     }
@@ -398,7 +422,7 @@ impl ThreadProfiler {
             // If not, create new scope with 'current' as parent
             else {
                 // Add visual indicator of the nesting
-                let scope = ScopeProfiler::new(name.clone(), current.hierarchy_depth + 1);
+                let scope = ScopeProfiler::new(current.hierarchy_depth + 1);
 
                 // Update current scope's children
                 current.children.insert(name, scope);
@@ -410,7 +434,7 @@ impl ThreadProfiler {
         if let Some((idx, _, _)) = self.scopes.get_full(&name) {
             self.current.push(idx);
         } else {
-            let scope = ScopeProfiler::new(name.clone(), 0);
+            let scope = ScopeProfiler::new(0);
             self.scopes.insert(name, scope);
             self.current.push(self.scopes.len() - 1);
         }
@@ -428,15 +452,14 @@ impl ThreadProfiler {
 
 #[cfg(feature = "enable")]
 impl ScopeProfiler {
-    fn new(name: std::borrow::Cow<'static, str>, hierarchy_depth: usize) -> Self {
+    fn new(hierarchy_depth: usize) -> Self {
         Self {
-            name,
             hierarchy_depth,
             timings: Vec::new(),
             children: indexmap::IndexMap::with_hasher(ahash::RandomState::new()),
         }
     }
-    fn to_timings(&self, total: std::time::Duration) -> Vec<Timing> {
+    fn to_timings(&self, name: impl AsRef<str>, total: std::time::Duration) -> Vec<Timing> {
         #[cfg(feature = "hierarchy")]
         let name = {
             // Add a padding equal to hierarchy depth
@@ -447,7 +470,7 @@ impl ScopeProfiler {
             } else {
                 " ".repeat(self.hierarchy_depth)
             };
-            format!("{}{}", spaces, self.name)
+            format!("{}{}", spaces, name.as_ref())
         };
         #[cfg(not(feature = "hierarchy"))]
         let name = self.name.to_string();
@@ -455,8 +478,8 @@ impl ScopeProfiler {
         std::iter::once(timing)
             .chain(
                 self.children
-                    .values()
-                    .flat_map(|child| child.to_timings(total)),
+                    .iter()
+                    .flat_map(|(name, child)| child.to_timings(name, total)),
             )
             .collect()
     }

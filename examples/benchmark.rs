@@ -1,8 +1,10 @@
+// Run with 'cargo run --release --example benchmark --features metaprof > out'
+
 fn main() {
     profi::print_on_exit!();
 
     // Benchmark how much time it takes for `prof!` to create and drop
-    for _ in 0..1000 {
+    for _ in 0..100 {
         bench()
     }
 
@@ -30,13 +32,14 @@ fn bench() {
         let _guard = profi::prof_guard!(prof_guard);
     }
     {
+        // Time Self
         for _ in 0..1000 {
             profi::prof!(self);
             profi::prof!(_self);
         }
     }
 
-    // Many times
+    // High number of calls
     // 10..100_000
     let mut iter = 10;
     for _ in 0..5 {
@@ -51,10 +54,18 @@ fn bench() {
         if depth > limit {
             return;
         }
-        for _ in 0..3 {
-            profi::prof!(fmt = "depth = {depth}");
-            nest(depth + 1, limit);
+        
+        profi::prof!(fmt = "depth = {depth}");
+        nest(depth + 1, limit);
+    }
+    nest(0, 1000);
+
+    // Very large amount of leaves
+    {
+        profi::prof!("[leaves]");
+        for i in 0..10_000 {
+            profi::prof!(fmt = "[leaves] i = {i}");
         }
     }
-    nest(0, 5);
+
 }
