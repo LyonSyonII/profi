@@ -43,19 +43,19 @@ fn bench() {
     // 10..100_000
     let mut iter = 10;
     for _ in 0..5 {
+        for _ in 0..iter {
             profi::prof!(fmt = "prof{iter}");
-            miniprof::prof!(fmt = "prof{iter}");
         }
         iter *= 10;
+    }
     
-
     // Highly nested
     fn nest(depth: usize, limit: usize) {
         if depth > limit {
             return;
+        }
         
         profi::prof!(fmt = "depth = {depth}");
-        miniprof::prof!(fmt = "depth = {depth}");
         nest(depth + 1, limit);
     }
     nest(0, 1000);
@@ -67,4 +67,5 @@ fn bench() {
             profi::prof!(fmt = "[leaves] i = {i}");
         }
     }
+
 }
