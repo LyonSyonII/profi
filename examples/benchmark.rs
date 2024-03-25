@@ -7,7 +7,6 @@ fn main() {
     for _ in 0..100 {
         bench()
     }
-
 }
 
 fn bench() {
@@ -48,13 +47,13 @@ fn bench() {
         }
         iter *= 10;
     }
-    
+
     // Highly nested
     fn nest(depth: usize, limit: usize) {
         if depth > limit {
             return;
         }
-        
+
         profi::prof!(fmt = "depth = {depth}");
         nest(depth + 1, limit);
     }
@@ -67,5 +66,4 @@ fn bench() {
             profi::prof!(fmt = "[leaves] i = {i}");
         }
     }
-
 }

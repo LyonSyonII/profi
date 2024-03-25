@@ -8,18 +8,18 @@ edition = "2021"
 authors = ["Liam <liam@garriga.dev>"]
 
 [dependencies]
-ahash = "0.8.11"
+beef = { version = "0.5.2", features = ["const_fn"] }
 comfy-table = { version = "7.1.0", default-features = false, optional = true }
-indexmap = { version = "2.2.6", optional = true }
 minstant = { version = "0.1.7", optional = true }
 rayon = { version = "1.9.0", default-features = false, optional = true }
+thin_str = "0.1.0"
 
 [profile.dev]
 debug = 0
 
 [features]
 default = ["enable", "hierarchy"]
-enable = ["dep:comfy-table", "dep:indexmap", "dep:minstant"]    # Enable measurements
+enable = ["dep:comfy-table", "dep:minstant"]    # Enable measurements
 rayon = ["dep:rayon"]                                           # Enable rayon compatibility
 hierarchy = []                                                  # Show method hierarchy in table
 metaprof = []                                                   # Enable meta profiling (profiling of 'profi' methods)
