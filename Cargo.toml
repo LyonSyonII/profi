@@ -8,6 +8,7 @@ edition = "2021"
 authors = ["Liam <liam@garriga.dev>"]
 
 [dependencies]
+akin = "0.4.0"
 beef = { version = "0.5.2", features = ["const_fn"] }
 comfy-table = { version = "7.1.0", default-features = false, optional = true }
 minstant = { version = "0.1.7", optional = true }
