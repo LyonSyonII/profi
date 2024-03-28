@@ -17,7 +17,7 @@ fn main() {
     print_on_exit!();
 
     std::thread::scope(|s| {
-        for i in 0..10 {
+        for i in 0..100 {
             s.spawn(move || {
                 do_work(i);
             });

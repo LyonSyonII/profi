@@ -16,11 +16,6 @@ pub fn dbg_thread() {
     crate::measure::THREAD_PROFILER.with_borrow(|t| println!("{t:#?}"));
 }
 
-pub fn init_profiler() {
-    #[cfg(feature = "enable")]
-    crate::measure::THREAD_PROFILER.with(|_| ());
-}
-
 #[cfg(feature = "enable")]
 fn drop_threads() {
     #[cfg(feature = "enable")]
