@@ -106,6 +106,7 @@ fn create_table(timings: impl IntoIterator<Item = Timing>) -> comfy_table::Table
     table
 }
 
+#[cfg(feature = "enable")]
 #[derive(Debug, Clone)]
 struct Node<'a> {
     measures: Vec<std::time::Duration>,
@@ -113,6 +114,7 @@ struct Node<'a> {
     depth: usize,
 }
 
+#[cfg(feature = "enable")]
 impl<'a> Node<'a> {
     fn new(depth: usize) -> Self {
         Self {
@@ -148,6 +150,7 @@ impl<'a> Node<'a> {
     }
 }
 
+#[cfg(feature = "enable")]
 pub fn print_timings(
     threads: &[(std::time::Duration, Vec<crate::measure::Measure>)],
     mut to: impl std::io::Write,
@@ -171,10 +174,14 @@ pub fn print_timings(
             }
         }
     }
-    write!(to, "{}", create_table(timings.into_values()));
-    Ok(())
+    let total_cpu = timings.iter().map(|(_, t)| t.total_cpu).sum();
+    timings
+        .iter_mut()
+        .for_each(|(_, t)| t.update_percent(*total_app, total_cpu));
+    write!(to, "{}", create_table(timings.into_values()))
 }
 
+#[cfg(feature = "enable")]
 fn into_tree<'node, 'm: 'node>(
     measures: &'m [crate::measure::Measure],
 ) -> indexmap::IndexMap<&'m str, Node<'node>> {

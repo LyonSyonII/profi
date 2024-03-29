@@ -124,6 +124,7 @@ mod measure;
 mod process;
 pub mod zz_private;
 
+#[cfg(feature = "enable")]
 pub(crate) type Str = beef::lean::Cow<'static, str>;
 
 /// Allows profiling the profiling methods

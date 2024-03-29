@@ -1,14 +1,17 @@
 #[allow(unused)]
 use std::{cell::RefCell, rc::Rc};
 
+#[cfg(feature = "enable")]
 use crate::Str;
 
+#[cfg(feature = "enable")]
 #[derive(Debug, Clone)]
 pub(crate) struct Measure {
     pub(crate) ty: MeasureType,
     pub(crate) time: minstant::Instant,
 }
 
+#[cfg(feature = "enable")]
 #[derive(Debug, Clone)]
 pub(crate) enum MeasureType {
     Start { name: Str },
@@ -20,13 +23,13 @@ pub(crate) enum MeasureType {
 pub(crate) struct GlobalProfiler {
     pub(crate) threads: std::sync::Mutex<usize>,
     pub(crate) cvar: std::sync::Condvar,
-    measurements: std::sync::RwLock<Vec<(std::time::Duration, Vec<Measure>)>>,
+    measures: std::sync::RwLock<Vec<(std::time::Duration, Vec<Measure>)>>,
 }
 
 #[cfg(feature = "enable")]
 #[derive(Debug)]
 pub(crate) struct ThreadProfiler {
-    measurements: Vec<Measure>,
+    measures: Vec<Measure>,
     thread_start: minstant::Instant,
     thread_time: Option<std::time::Duration>,
 }
@@ -43,18 +46,18 @@ thread_local! {
 impl GlobalProfiler {
     const fn new() -> Self {
         Self {
-            measurements: std::sync::RwLock::new(Vec::new()),
+            measures: std::sync::RwLock::new(Vec::new()),
             threads: std::sync::Mutex::new(0),
             cvar: std::sync::Condvar::new(),
         }
     }
 
-    pub(crate) fn print_timings(&self, mut to: impl std::io::Write) -> std::io::Result<()> {
+    pub(crate) fn print_timings(&self, to: impl std::io::Write) -> std::io::Result<()> {
         THREAD_PROFILER.with_borrow(|thread| {
-            dbg!(thread.get_thread_time());
+            thread.get_thread_time();
         });
 
-        crate::process::print_timings(self.measurements.read().unwrap().as_slice(), to)
+        crate::process::print_timings(self.measures.read().unwrap().as_slice(), to)
     }
 }
 
@@ -63,37 +66,39 @@ impl ThreadProfiler {
     pub(crate) fn new() -> Self {
         *GLOBAL_PROFILER.threads.lock().unwrap() += 1;
         Self {
-            measurements: Vec::with_capacity(4096),
+            measures: Vec::with_capacity(4096),
             thread_start: minstant::Instant::now(),
             thread_time: None,
         }
     }
 
     pub(crate) fn push(&mut self, name: Str, time: minstant::Instant) {
-        self.measurements.push(Measure {
+        self.measures.push(Measure {
             time,
             ty: MeasureType::Start { name },
         });
     }
 
     pub(crate) fn pop(&mut self, time: minstant::Instant) {
-        self.measurements.push(Measure {
+        self.measures.push(Measure {
             time,
             ty: MeasureType::End,
         })
     }
 
-    pub(crate) fn manual_drop(&mut self, dec: bool) {
+    pub(crate) fn manual_drop(&mut self, main_thread: bool) {
         self.set_thread_time();
-        let measurements = std::mem::take(&mut self.measurements);
-        if !measurements.is_empty() {
-            GLOBAL_PROFILER
-                .measurements
-                .write()
-                .unwrap()
-                .push((self.thread_time.unwrap(), measurements));
+        let measures = std::mem::take(&mut self.measures);
+        if !measures.is_empty() {
+            let mut lock = GLOBAL_PROFILER.measures.write().unwrap();
+            if main_thread {
+                // Ensure the main thread is always first
+                lock.insert(0, (self.thread_time.unwrap(), measures));
+            } else {
+                lock.push((self.thread_time.unwrap(), measures));
+            }
         }
-        if dec {
+        if !main_thread {
             let mut lock = GLOBAL_PROFILER.threads.lock().unwrap();
             *lock -= 1;
             GLOBAL_PROFILER.cvar.notify_one()
@@ -116,6 +121,6 @@ impl ThreadProfiler {
 impl Drop for ThreadProfiler {
     fn drop(&mut self) {
         #[cfg(not(feature = "rayon"))]
-        self.manual_drop(true)
+        self.manual_drop(false)
     }
 }
