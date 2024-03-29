@@ -53,7 +53,7 @@ impl GlobalProfiler {
         THREAD_PROFILER.with_borrow(|thread| {
             dbg!(thread.get_thread_time());
         });
-        
+
         crate::process::print_timings(self.measurements.read().unwrap().as_slice())
     }
 }
@@ -61,6 +61,7 @@ impl GlobalProfiler {
 #[cfg(feature = "enable")]
 impl ThreadProfiler {
     pub(crate) fn new() -> Self {
+        *GLOBAL_PROFILER.threads.lock().unwrap() += 1;
         Self {
             measurements: Vec::with_capacity(4096),
             thread_start: minstant::Instant::now(),
@@ -87,10 +88,10 @@ impl ThreadProfiler {
         let measurements = std::mem::take(&mut self.measurements);
         if !measurements.is_empty() {
             GLOBAL_PROFILER
-            .measurements
-            .write()
-            .unwrap()
-            .push((self.thread_time.unwrap(), measurements));
+                .measurements
+                .write()
+                .unwrap()
+                .push((self.thread_time.unwrap(), measurements));
         }
         if dec {
             let mut lock = GLOBAL_PROFILER.threads.lock().unwrap();
@@ -98,7 +99,7 @@ impl ThreadProfiler {
             GLOBAL_PROFILER.cvar.notify_one()
         }
     }
-    
+
     pub(crate) fn set_thread_time(&mut self) {
         self.thread_time.replace(self.thread_start.elapsed());
     }

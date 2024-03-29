@@ -1,7 +1,7 @@
 #[cfg(feature = "enable")]
 #[derive(Debug, Clone)]
 struct Timing {
-    name: String,
+    name: crate::Str,
     /// % Application Time
     percent_app: f64,
     /// Real Time
@@ -17,7 +17,7 @@ struct Timing {
 #[cfg(feature = "enable")]
 impl Timing {
     fn from_durations(
-        name: String,
+        name: impl Into<crate::Str>,
         timings: &[std::time::Duration],
         total: std::time::Duration,
     ) -> Self {
@@ -29,7 +29,7 @@ impl Timing {
         };
         let average = sum / timings.len().max(1) as u32;
         Self {
-            name,
+            name: name.into(),
             percent_app: percent,
             total_real: sum,
             percent_cpu: percent,
@@ -108,7 +108,7 @@ fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
 
 #[derive(Debug, Clone)]
 struct Node<'a> {
-    timings: Vec<std::time::Duration>,
+    measures: Vec<std::time::Duration>,
     children: indexmap::IndexMap<&'a str, Node<'a>>,
     depth: usize,
 }
@@ -116,35 +116,80 @@ struct Node<'a> {
 impl<'a> Node<'a> {
     fn new(depth: usize) -> Self {
         Self {
-            timings: Vec::new(),
+            measures: Vec::new(),
             children: indexmap::IndexMap::new(),
-            depth
+            depth,
         }
+    }
+
+    fn to_timings(&self, name: &str, total: std::time::Duration) -> Vec<Timing> {
+        #[cfg(feature = "hierarchy")]
+        let name = {
+            // Add a padding equal to hierarchy depth
+            // If it's >= 20, add a numeric indicator and limit the padding
+            let spaces = if self.depth >= 20 {
+                let new = format!("(+{}) ", self.depth);
+                format!("{}{new}", " ".repeat(20usize.saturating_sub(new.len())))
+            } else {
+                " ".repeat(self.depth)
+            };
+            format!("{spaces}{name}")
+        };
+        #[cfg(not(feature = "hierarchy"))]
+        let name = self.name.to_string();
+        let timing = Timing::from_durations(name, &self.measures, total);
+        std::iter::once(timing)
+            .chain(
+                self.children
+                    .iter()
+                    .flat_map(|(name, child)| child.to_timings(name, total)),
+            )
+            .collect()
     }
 }
 
-pub fn print_timings(threads: &[(std::time::Duration, Vec<crate::measure::Measure>)]) -> std::io::Result<()> {
-    let mut tree = indexmap::IndexMap::new();
-    for (time, measurements) in threads {
-        tree = create_tree(measurements, tree);
+pub fn print_timings(
+    threads: &[(std::time::Duration, Vec<crate::measure::Measure>)],
+    mut to: impl std::io::Write,
+) -> std::io::Result<()> {
+    let mut total_app = threads
+        .first()
+        .map(|(t, _)| t)
+        .unwrap_or_else(|| unreachable!("[profi] threads.len() < 1, this should not be possible"));
+    let mut timings = Vec::new();
+    for (time, measures) in threads {
+        total_app = total_app.max(time);
+        let thread = into_tree(measures);
+        let thread = thread
+            .iter()
+            .flat_map(|(name, node)| node.to_timings(name, *time));
+        for timing in thread {
+            
+        }
     }
-    // println!("{:#?}", tree);
+    write!(to, "{}", create_table(timings));
     Ok(())
 }
 
-fn get_current<'r, 'node>(current_path: &[usize], tree: &'r mut indexmap::IndexMap<&str, Node<'node>>) -> Option<&'r mut Node<'node>> {
-    let (_, mut current) = tree.get_index_mut(*current_path.first()?)?;
-    for c in current_path.get(1..).unwrap_or_default().iter().copied() {
-        (_, current) = current.children.get_index_mut(c)?;
+fn into_tree<'node, 'm: 'node>(
+    measures: &'m [crate::measure::Measure],
+) -> indexmap::IndexMap<&'m str, Node<'node>> {
+    fn get_current<'r, 'node>(
+        current_path: &[usize],
+        tree: &'r mut indexmap::IndexMap<&str, Node<'node>>,
+    ) -> Option<&'r mut Node<'node>> {
+        let (_, mut current) = tree.get_index_mut(*current_path.first()?)?;
+        for c in current_path.get(1..).unwrap_or_default().iter().copied() {
+            (_, current) = current.children.get_index_mut(c)?;
+        }
+        Some(current)
     }
-    Some(current)
-}
 
-fn create_tree<'node, 'm: 'node>(measurements: &'m [crate::measure::Measure], mut tree: indexmap::IndexMap<&'m str, Node<'node>>) -> indexmap::IndexMap<&'m str, Node<'node>> {
+    let mut tree = indexmap::IndexMap::new();
     let mut current_path: Vec<usize> = Vec::new();
     let mut start_times: Vec<minstant::Instant> = Vec::new();
-    
-    for m in measurements {
+
+    for m in measures {
         match m.ty {
             crate::measure::MeasureType::Start { ref name } => {
                 let name = name.as_ref();
@@ -153,29 +198,43 @@ fn create_tree<'node, 'm: 'node>(measurements: &'m [crate::measure::Measure], mu
                 let Some(current) = get_current(&current_path, &mut tree) else {
                     // No current subtree, so insert to root
                     if let Some(idx) = tree.get_index_of(name) {
+                        // If exists in tree, just add to current path
                         current_path.push(idx);
                     } else {
+                        // If not, create it
                         tree.insert(name, Node::new(0));
-                        current_path.push(tree.len()-1);
+                        current_path.push(tree.len() - 1);
                     }
                     continue;
                 };
                 // Insert node as child of current
                 if let Some(idx) = current.children.get_index_of(name) {
+                    // If exists in tree, just add to current path
                     current_path.push(idx);
                 } else {
+                    // If not, create it
                     current.children.insert(name, Node::new(current.depth + 1));
-                    current_path.push(current.children.len()-1);
+                    current_path.push(current.children.len() - 1);
                 }
-            },
+            }
             crate::measure::MeasureType::End => {
-                let current = get_current(&current_path, &mut tree).expect("[profi] 'pop' called and 'current' is 'None', this should never happen!");
-                let start = start_times.pop().expect("[profi] 'pop' called and 'start_times' is empty, this should never happen!");
-                current.timings.push(m.time.duration_since(start));
+                let current = get_current(&current_path, &mut tree).expect(
+                    "[profi] 'pop' called and 'current' is 'None', this should never happen!",
+                );
+                let start = start_times.pop().expect(
+                    "[profi] 'pop' called and 'start_times' is empty, this should never happen!",
+                );
+                current.measures.push(m.time.duration_since(start));
                 current_path.pop();
-            },
+            }
         }
     }
 
     tree
+}
+
+fn into_timings(tree: indexmap::IndexMap<&str, Node<'_>>) -> Vec<Timing> {
+    for (name, node) in tree {
+        let durations = node.into_durations();
+    }
 }

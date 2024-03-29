@@ -5,8 +5,7 @@
 use crate::Str;
 
 #[cfg_attr(feature = "enable", derive(Debug))]
-pub struct ScopeGuard {
-}
+pub struct ScopeGuard {}
 
 #[inline(always)]
 pub fn dbg_thread() {
@@ -17,10 +16,10 @@ pub fn dbg_thread() {
 #[cfg(feature = "enable")]
 fn drop_threads() {
     #[cfg(feature = "enable")]
-    crate::measure::THREAD_PROFILER.with_borrow_mut(|t| { 
+    crate::measure::THREAD_PROFILER.with_borrow_mut(|t| {
         t.manual_drop(false);
     });
-    
+
     #[cfg(all(feature = "rayon", feature = "enable"))]
     {
         // Drop threads manually, as `rayon` never drops them
@@ -59,14 +58,14 @@ impl ScopeGuard {
             let time = minstant::Instant::now();
             crate::measure::THREAD_PROFILER.with_borrow_mut(|thread| thread.push(name.into(), time))
         };
-        Self {
-        }
+        Self {}
     }
 }
 
 impl Drop for ScopeGuard {
     fn drop(&mut self) {
-        #[cfg(feature = "enable")] {
+        #[cfg(feature = "enable")]
+        {
             let time = minstant::Instant::now();
             crate::measure::THREAD_PROFILER.with_borrow_mut(|thread| {
                 thread.pop(time);

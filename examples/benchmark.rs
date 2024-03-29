@@ -7,7 +7,6 @@ fn main() {
     for _ in 0..100 {
         bench()
     }
-
 }
 
 fn bench() {
@@ -47,18 +46,18 @@ fn bench() {
             profi::prof!("prof*iter");
         }
     }
-    
+
     // Highly nested
     fn nest(depth: usize, limit: usize) {
         if depth > limit {
             return;
         }
-        
+
         profi::prof!("depth = {depth}");
         nest(depth + 1, limit);
     }
     nest(0, 1000);
-    
+
     // Very large amount of leaves
     akin::akin! {
         let &i = 0..1000;
@@ -67,7 +66,7 @@ fn bench() {
                 profi::prof!("[leaves] i = *i");
             }
         };
-        
+
         profi::prof!("[leaves]");
         *block
     }
