@@ -54,7 +54,7 @@ impl GlobalProfiler {
             dbg!(thread.get_thread_time());
         });
 
-        crate::process::print_timings(self.measurements.read().unwrap().as_slice())
+        crate::process::print_timings(self.measurements.read().unwrap().as_slice(), to)
     }
 }
 

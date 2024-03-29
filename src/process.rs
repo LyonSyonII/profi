@@ -51,7 +51,7 @@ impl Timing {
 }
 
 #[cfg(feature = "enable")]
-fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
+fn create_table(timings: impl IntoIterator<Item = Timing>) -> comfy_table::Table {
     let mut table = comfy_table::Table::new();
     table.load_preset(comfy_table::presets::UTF8_FULL);
     table.set_header([
@@ -156,7 +156,7 @@ pub fn print_timings(
         .first()
         .map(|(t, _)| t)
         .unwrap_or_else(|| unreachable!("[profi] threads.len() < 1, this should not be possible"));
-    let mut timings = Vec::new();
+    let mut timings: indexmap::IndexMap<crate::Str, Timing> = indexmap::IndexMap::new();
     for (time, measures) in threads {
         total_app = total_app.max(time);
         let thread = into_tree(measures);
@@ -164,10 +164,14 @@ pub fn print_timings(
             .iter()
             .flat_map(|(name, node)| node.to_timings(name, *time));
         for timing in thread {
-            
+            if let Some(other) = timings.get_mut(timing.name.as_ref()) {
+                other.merge(&timing);
+            } else {
+                timings.insert(timing.name.clone(), timing);
+            }
         }
     }
-    write!(to, "{}", create_table(timings));
+    write!(to, "{}", create_table(timings.into_values()));
     Ok(())
 }
 
@@ -231,10 +235,4 @@ fn into_tree<'node, 'm: 'node>(
     }
 
     tree
-}
-
-fn into_timings(tree: indexmap::IndexMap<&str, Node<'_>>) -> Vec<Timing> {
-    for (name, node) in tree {
-        let durations = node.into_durations();
-    }
 }
