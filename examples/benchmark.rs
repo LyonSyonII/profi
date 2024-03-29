@@ -7,7 +7,6 @@ fn main() {
     for _ in 0..100 {
         bench()
     }
-
 }
 
 fn bench() {
@@ -41,31 +40,34 @@ fn bench() {
 
     // High number of calls
     // 10..100_000
-    let mut iter = 10;
-    for _ in 0..5 {
-        for _ in 0..iter {
-            profi::prof!(fmt = "prof{iter}");
+    akin::akin! {
+        let &iter = [10, 100, 1000, 10_000, 100_000];
+        for _ in 0..*iter {
+            profi::prof!("prof*iter");
         }
-        iter *= 10;
     }
-    
+
     // Highly nested
     fn nest(depth: usize, limit: usize) {
         if depth > limit {
             return;
         }
-        
-        profi::prof!(fmt = "depth = {depth}");
+
+        profi::prof!("depth = {depth}");
         nest(depth + 1, limit);
     }
     nest(0, 1000);
 
     // Very large amount of leaves
-    {
-        profi::prof!("[leaves]");
-        for i in 0..10_000 {
-            profi::prof!(fmt = "[leaves] i = {i}");
-        }
-    }
+    akin::akin! {
+        let &i = 0..1000;
+        let &block = {
+            {
+                profi::prof!("[leaves] i = *i");
+            }
+        };
 
+        profi::prof!("[leaves]");
+        *block
+    }
 }
