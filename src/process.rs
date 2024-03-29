@@ -128,7 +128,7 @@ pub fn print_timings(threads: &[(std::time::Duration, Vec<crate::measure::Measur
     for (time, measurements) in threads {
         tree = create_tree(measurements, tree);
     }
-    dbg!(tree);
+    // println!("{:#?}", tree);
     Ok(())
 }
 
@@ -142,7 +142,7 @@ fn get_current<'r, 'node>(current_path: &[usize], tree: &'r mut indexmap::IndexM
 
 fn create_tree<'node, 'm: 'node>(measurements: &'m [crate::measure::Measure], mut tree: indexmap::IndexMap<&'m str, Node<'node>>) -> indexmap::IndexMap<&'m str, Node<'node>> {
     let mut current_path: Vec<usize> = Vec::new();
-    let mut start_times = Vec::new();
+    let mut start_times: Vec<minstant::Instant> = Vec::new();
     
     for m in measurements {
         match m.ty {

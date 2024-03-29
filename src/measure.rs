@@ -52,7 +52,6 @@ impl GlobalProfiler {
     pub(crate) fn print_timings(&self, mut to: impl std::io::Write) -> std::io::Result<()> {
         THREAD_PROFILER.with_borrow(|thread| {
             dbg!(thread.get_thread_time());
-            dbg!(thread.measurements.len());
         });
         
         crate::process::print_timings(self.measurements.read().unwrap().as_slice())
