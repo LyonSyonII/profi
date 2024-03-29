@@ -105,3 +105,77 @@ fn create_table(timings: Vec<Timing>) -> comfy_table::Table {
 
     table
 }
+
+#[derive(Debug, Clone)]
+struct Node<'a> {
+    timings: Vec<std::time::Duration>,
+    children: indexmap::IndexMap<&'a str, Node<'a>>,
+    depth: usize,
+}
+
+impl<'a> Node<'a> {
+    fn new(depth: usize) -> Self {
+        Self {
+            timings: Vec::new(),
+            children: indexmap::IndexMap::new(),
+            depth
+        }
+    }
+}
+
+pub fn print_timings(threads: &[(std::time::Duration, Vec<crate::measure::Measure>)]) -> std::io::Result<()> {
+    let mut tree = indexmap::IndexMap::new();
+    for (time, measurements) in threads {
+        tree = create_tree(measurements, tree);
+    }
+    dbg!(tree);
+    Ok(())
+}
+
+fn get_current<'r, 'node>(current_path: &[usize], tree: &'r mut indexmap::IndexMap<&str, Node<'node>>) -> Option<&'r mut Node<'node>> {
+    let (_, mut current) = tree.get_index_mut(*current_path.first()?)?;
+    for c in current_path.get(1..).unwrap_or_default().iter().copied() {
+        (_, current) = current.children.get_index_mut(c)?;
+    }
+    Some(current)
+}
+
+fn create_tree<'node, 'm: 'node>(measurements: &'m [crate::measure::Measure], mut tree: indexmap::IndexMap<&'m str, Node<'node>>) -> indexmap::IndexMap<&'m str, Node<'node>> {
+    let mut current_path: Vec<usize> = Vec::new();
+    let mut start_times = Vec::new();
+    
+    for m in measurements {
+        match m.ty {
+            crate::measure::MeasureType::Start { ref name } => {
+                let name = name.as_ref();
+                start_times.push(m.time);
+
+                let Some(current) = get_current(&current_path, &mut tree) else {
+                    // No current subtree, so insert to root
+                    if let Some(idx) = tree.get_index_of(name) {
+                        current_path.push(idx);
+                    } else {
+                        tree.insert(name, Node::new(0));
+                        current_path.push(tree.len()-1);
+                    }
+                    continue;
+                };
+                // Insert node as child of current
+                if let Some(idx) = current.children.get_index_of(name) {
+                    current_path.push(idx);
+                } else {
+                    current.children.insert(name, Node::new(current.depth + 1));
+                    current_path.push(current.children.len()-1);
+                }
+            },
+            crate::measure::MeasureType::End => {
+                let current = get_current(&current_path, &mut tree).expect("[profi] 'pop' called and 'current' is 'None', this should never happen!");
+                let start = start_times.pop().expect("[profi] 'pop' called and 'start_times' is empty, this should never happen!");
+                current.timings.push(m.time.duration_since(start));
+                current_path.pop();
+            },
+        }
+    }
+
+    tree
+}
