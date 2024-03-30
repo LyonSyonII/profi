@@ -172,7 +172,14 @@ pub fn print_timings(
     timings
         .iter_mut()
         .for_each(|(_, t)| t.update_percent(total_app, total_cpu));
-    write!(to, "{}", create_table(timings.into_values()))
+    
+    #[cfg(feature = "metaprof")] {
+        let total_average = timings.iter().map(|t| t.1.average).sum::<std::time::Duration>();
+        let calls = timings.iter().map(|t| t.1.calls).sum::<usize>() as u32;
+        eprintln!("[profi] The average time per measure in your machine is: {:#?}", total_average / calls);
+        writeln!(to, "\n\t\tTime/Measure: {:#?}\n", total_average / calls);
+    }
+    writeln!(to, "{}", create_table(timings.into_values()))
 }
 
 #[cfg(feature = "enable")]

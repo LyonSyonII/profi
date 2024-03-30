@@ -94,7 +94,7 @@ impl ThreadProfiler {
                 // Ensure the main thread is always first
                 lock.insert(0, (thread_time, measures));
             } else {
-                lock.push((self.thread_time.unwrap(), measures));
+                lock.push((thread_time, measures));
             }
         }
         if !main_thread {

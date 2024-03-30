@@ -1,8 +1,9 @@
-// Run with 'cargo run --release --example benchmark --features metaprof > out'
-
 fn main() {
-    profi::print_on_exit!();
 
+    // Run with 'cargo run --release --example benchmark --features metaprof > out'
+    
+    profi::print_on_exit!();
+    
     // Benchmark how much time it takes for `prof!` to create and drop
     for _ in 0..100 {
         bench()
@@ -52,7 +53,7 @@ fn bench() {
         if depth > limit {
             return;
         }
-
+        
         profi::prof!("depth = {depth}");
         nest(depth + 1, limit);
     }

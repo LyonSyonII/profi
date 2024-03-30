@@ -2,7 +2,7 @@
 //!
 //! Record the time it takes for a scope to end and print the timings when the program exits.
 //!
-//! Each measurement has an overhead of ~16-29ns, so it shouldn't impact benchmarks.  
+//! Each measurement has an overhead of ~26ns, so it shouldn't impact benchmarks.  
 //! Run the [benchmarks](https://github.com/LyonSyonII/profi/blob/main/examples/benchmark.rs) example to see what's the overhead on your machine.
 //!
 //! # Setup
