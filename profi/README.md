@@ -47,11 +47,11 @@ fn main() {
 }
 ```
 ```plaintext
-┌──────────────┬────────────────────┬───────────┬────────────┬──────────┬──────────────┬───────┐
-│ Name         ┆ % Application Time ┆ Real Time ┆ % CPU Time ┆ CPU Time ┆ Average time ┆ Calls │
-╞══════════════╪════════════════════╪═══════════╪════════════╪══════════╪══════════════╪═══════╡
-│ simple::main ┆ 100.00%            ┆ 200.13ms  ┆      -     ┆     -    ┆       -      ┆     1 │
-└──────────────┴────────────────────┴───────────┴────────────┴──────────┴──────────────┴───────┘
+┌──────────────┬────────────────────┬───────────┬──────────────┬───────┐
+│ Name         ┆ % Application Time ┆ Real Time ┆ Average time ┆ Calls │
+╞══════════════╪════════════════════╪═══════════╪══════════════╪═══════╡
+│ simple::main ┆ 100.00%            ┆ 200.13ms  ┆       -      ┆     1 │
+└──────────────┴────────────────────┴───────────┴──────────────┴───────┘
 ```
 
 ## Loops
@@ -68,13 +68,13 @@ fn main() {
 }
 ```
 ```plaintext
-┌────────────┬────────────────────┬───────────┬────────────┬──────────┬──────────────┬───────┐
-│ Name       ┆ % Application Time ┆ Real Time ┆ % CPU Time ┆ CPU Time ┆ Average time ┆ Calls │
-╞════════════╪════════════════════╪═══════════╪════════════╪══════════╪══════════════╪═══════╡
-│ loop::main ┆ 100.00%            ┆ 1.01s     ┆      -     ┆     -    ┆       -      ┆     1 │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
-│ iteration  ┆ 99.99%             ┆ 1.01s     ┆      -     ┆     -    ┆ 10.10ms/call ┆   100 │
-└────────────┴────────────────────┴───────────┴────────────┴──────────┴──────────────┴───────┘
+┌────────────┬────────────────────┬───────────┬──────────────┬───────┐
+│ Name       ┆ % Application Time ┆ Real Time ┆ Average time ┆ Calls │
+╞════════════╪════════════════════╪═══════════╪══════════════╪═══════╡
+│ loop::main ┆ 100.00%            ┆ 1.01s     ┆       -      ┆     1 │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│ iteration  ┆ 99.99%             ┆ 1.01s     ┆ 10.10ms/call ┆   100 │
+└────────────┴────────────────────┴───────────┴──────────────┴───────┘
 ```
 
 ## Multiple threads
@@ -138,5 +138,5 @@ fn anotated() { /* ... */ }
 | `enable`         | Activates the profiling, if not active all macros become no-ops                                                                                                                                                 |
 | `attributes`     | Enables the `#[prof]` macro                                                                                                                                                                                     |
 | `deep-hierarchy` | By default `profi` merges all uses of a function, use this feature to disable this behaviour.<br/>See the [`nested` example for more information](https://github.com/LyonSyonII/profi/tree/main/profi/examples) |
-| `nightly`        | Enables nightly-only optimizations                                                                                                                                                                              |
+| `nightly`        | Enables nightly-only optimizations (unused at the moment)                                                                                                                                                       |
 | `rayon`          | Necessary if using [`rayon`](https://crates.io/crates/rayon)                                                                                                                                                    |
