@@ -121,9 +121,15 @@ fn main() {
 For example, "6 first" has a "CPU Time" of 6 seconds because each thread waits 1 second, and the program spawns six of them.
 
 ## Attribute
-```rust
-use profi::{prof, print_on_exit};
+Enable the `attributes` feature to use the `profile` attribute on functions.  
+This will add a guard at the start of the function.
 
+```ignore
+use profi::profile;
+
+#[profile]
+fn anotated() { /* ... */ }
+```
 
 # Features
 
@@ -132,4 +138,5 @@ use profi::{prof, print_on_exit};
 | `enable`         | Activates the profiling, if not active all macros become no-ops                                                                                                                        |
 | `attributes`     | Enables the `#[prof]` macro                                                                                                                                                            |
 | `deep-hierarchy` | By default `profi` merges all uses of a function, use this feature to disable this behaviour.<br/>See the [`nested` example for more information](https://github.com/lyonsyonii/profi) |
+| `nightly`        | Enables nightly-only optimizations                                                                                                                                                     |
 | `rayon`          | Necessary if using [`rayon`](https://crates.io/crates/rayon)                                                                                                                           |

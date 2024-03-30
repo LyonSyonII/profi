@@ -1,15 +1,40 @@
 #![doc = include_str!("../../README.md")]
 #![allow(clippy::needless_doctest_main)]
+#![cfg_attr(feature = "nightly", feature(const_type_name))]
 
 mod measure;
 mod process;
 pub mod zz_private;
 
+/// Enables profiling for the annotated function.
+/// 
+/// Equivalent to putting [`prof!()`] at the start.
+///
+/// # Examples
+/// ```rust
+/// use profi::profile;
+/// 
+/// #[profile]
+/// fn anotated() {
+///     // ...
+/// }
+/// ```
 #[cfg(feature = "attributes")]
 pub use profi_attributes::profile;
 
-#[cfg(feature = "enable")]
-pub(crate) type Str = beef::lean::Cow<'static, str>;
+/// Enables printing out the profiling results when `main` exits.
+/// 
+/// Equivalent to writing [`print_on_exit!()`] at the start of the function.
+///
+/// # Example
+/// ```rust
+/// #[profi::main]
+/// fn main() {
+///     // ...
+/// }
+/// ```
+#[cfg(feature = "attributes")]
+pub use profi_attributes::main;
 
 /// Allows profiling the profiling methods
 #[allow(unused)]
@@ -33,11 +58,15 @@ macro_rules! meta_prof {
     };
 }
 
+#[cfg(feature = "enable")]
+pub(crate) type Str = beef::lean::Cow<'static, str>;
+
 /// Profiles the time it takes for the scope to end.
 ///
 /// If you want to get an explicit guard, use [`prof_guard!`].
 ///
 /// # Examples
+/// ## Infer function's name
 /// ```
 /// use profi::{prof, print_on_exit};
 ///
@@ -52,6 +81,36 @@ macro_rules! meta_prof {
 ///   sleep();
 /// }
 /// ```
+/// 
+/// ## Use provided name
+/// ```
+/// use profi::{prof, print_on_exit};
+///
+/// fn wait(ms: u64) {
+///     // Profile `sleep`
+///     prof!("wait millis");
+///     std::thread::sleep(std::time::Duration::from_millis(ms));
+/// }
+///
+/// fn main() {
+///   print_on_exit!();
+///   wait(15);
+/// }
+/// ```
+/// 
+/// ## Use dynamic name
+/// ```
+/// use profi::{prof, print_on_exit};
+///
+/// fn main() {
+///   print_on_exit!();
+///   
+///   for i in 0..10 {
+///     prof!(fmt = "iteration {i}");
+///   }
+/// }
+/// ```
+/// 
 #[macro_export]
 macro_rules! prof {
     ($($tt:tt)*) => {
@@ -61,7 +120,9 @@ macro_rules! prof {
 
 /// Returns a guard that will profile as long as it's alive.
 ///
-/// This will be until the scope ends or dropped manually.
+/// This will be until the scope ends or is dropped manually.
+/// 
+/// Supports the same syntax as [`prof!`];
 ///
 /// # Examples
 /// ```
@@ -90,10 +151,7 @@ macro_rules! prof_guard {
         $crate::prof_guard!({
             // https://docs.rs/stdext/latest/src/stdext/macros.rs.html#63-74
             fn f() {}
-            fn type_name_of<T>(_: T) -> &'static str {
-                std::any::type_name::<T>()
-            }
-            let name = type_name_of(f);
+            let name = $crate::zz_private::type_name_of(f);
             // `3` is the length of the `::f`.
             &name[..name.len() - 3]
         })

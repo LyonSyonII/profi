@@ -136,3 +136,15 @@ pub fn print_timings_to(to: impl std::io::Write) -> std::io::Result<()> {
     crate::measure::GLOBAL_PROFILER.print_timings(to)?;
     Ok(())
 }
+
+#[cfg(feature = "nightly")]
+#[inline(always)]
+pub const fn type_name_of(f: fn()) -> &'static str {
+    std::any::type_name_of_val(&f)
+}
+
+#[cfg(not(feature = "nightly"))]
+#[inline(always)]
+pub fn type_name_of<T>(_: T) -> &'static str {
+    std::any::type_name::<T>()
+}

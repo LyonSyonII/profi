@@ -34,7 +34,7 @@ debug = 0
 opt-level = 3
 
 [features]
-default = ["enable"]
+default = ["enable", "attributes"]
 attributes = ["dep:profi-attributes"]
 enable = [
     "dep:comfy-table",
@@ -45,6 +45,7 @@ enable = [
 deep-hierarchy = []     # Do not merge entries with the same name
 metaprof = []           # Enable meta profiling (profiling of 'profi' methods)
 rayon = ["dep:rayon"]   # Enable rayon compatibility
+nightly = []            # Enables nightly-only optimizations
 
 [[example]]
 name = "attribute"
