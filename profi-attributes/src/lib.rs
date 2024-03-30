@@ -14,7 +14,7 @@ pub fn profile(_: TokenStream, items: TokenStream) -> TokenStream {
     };
     let profile = {
         use proc_macro::{Delimiter as D, Group, Ident, Punct, Spacing as S, Span};
-        
+
         [
             TokenTree::Punct(Punct::new(':', S::Joint)),
             TokenTree::Punct(Punct::new(':', S::Alone)),
@@ -51,7 +51,7 @@ pub fn main(_: TokenStream, items: TokenStream) -> TokenStream {
     };
     let profile = {
         use proc_macro::{Delimiter as D, Group, Ident, Punct, Spacing as S, Span};
-        
+
         [
             TokenTree::Punct(Punct::new(':', S::Joint)),
             TokenTree::Punct(Punct::new(':', S::Alone)),

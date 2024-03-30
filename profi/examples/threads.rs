@@ -13,7 +13,7 @@ fn do_work(i: usize) {
 
 fn main() {
     print_on_exit!();
-    
+
     // Spawn 10 threads
     std::thread::scope(|s| {
         for i in 0..10 {

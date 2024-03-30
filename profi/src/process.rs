@@ -68,15 +68,12 @@ impl Timing {
 fn create_table(timings: impl IntoIterator<Item = Timing>, threads: usize) -> comfy_table::Table {
     let mut table = comfy_table::Table::new();
     table.load_preset(comfy_table::presets::UTF8_FULL);
-    table.set_header([
-        "Name",
-        "% Application Time",
-        "Real Time",
-        "% CPU Time",
-        "CPU Time",
-        "Average time",
-        "Calls",
-    ]);
+    let mut header = vec!["Name", "% Application Time", "Real Time"];
+    if threads > 1 {
+        header.extend(["% CPU Time", "CPU Time"]);
+    }
+    header.extend(["Average time", "Calls"]);
+    table.set_header(header);
 
     let empty = || comfy_table::Cell::new("-").set_alignment(comfy_table::CellAlignment::Center);
 
@@ -88,14 +85,6 @@ fn create_table(timings: impl IntoIterator<Item = Timing>, threads: usize) -> co
         let name = cell(timing.formatted_name);
         let app_percent = cell(format!("{:.2}%", timing.percent_app));
         let real_time = cell(format!("{:.2?}", timing.total_real));
-        let (cpu_percent, cpu_time) = if threads <= 1 {
-            (empty(), empty())
-        } else {
-            (
-                cell(format!("{:.2}%", timing.percent_cpu)),
-                cell(format!("{:.2?}", timing.total_cpu)),
-            )
-        };
         let average = if timing.average.is_zero() || timing.calls <= 1 {
             empty()
         } else {
@@ -106,15 +95,15 @@ fn create_table(timings: impl IntoIterator<Item = Timing>, threads: usize) -> co
         } else {
             cell(timing.calls).set_alignment(comfy_table::CellAlignment::Right)
         };
-        table.add_row([
-            name,
-            app_percent,
-            real_time,
-            cpu_percent,
-            cpu_time,
-            average,
-            calls,
-        ]);
+        let mut row = vec![name, app_percent, real_time];
+        if threads > 1 {
+            row.extend([
+                cell(format!("{:.2}%", timing.percent_cpu)),
+                cell(format!("{:.2?}", timing.total_cpu)),
+            ])
+        }
+        row.extend([average, calls]);
+        table.add_row(row);
     }
 
     table

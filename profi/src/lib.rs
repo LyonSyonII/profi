@@ -7,13 +7,13 @@ mod process;
 pub mod zz_private;
 
 /// Enables profiling for the annotated function.
-/// 
+///
 /// Equivalent to putting [`prof!()`] at the start.
 ///
 /// # Examples
 /// ```rust
 /// use profi::profile;
-/// 
+///
 /// #[profile]
 /// fn anotated() {
 ///     // ...
@@ -23,7 +23,7 @@ pub mod zz_private;
 pub use profi_attributes::profile;
 
 /// Enables printing out the profiling results when `main` exits.
-/// 
+///
 /// Equivalent to writing [`print_on_exit!()`] at the start of the function.
 ///
 /// # Example
@@ -81,7 +81,7 @@ pub(crate) type Str = beef::lean::Cow<'static, str>;
 ///   sleep();
 /// }
 /// ```
-/// 
+///
 /// ## Use provided name
 /// ```
 /// use profi::{prof, print_on_exit};
@@ -97,7 +97,7 @@ pub(crate) type Str = beef::lean::Cow<'static, str>;
 ///   wait(15);
 /// }
 /// ```
-/// 
+///
 /// ## Use dynamic name
 /// ```
 /// use profi::{prof, print_on_exit};
@@ -110,7 +110,7 @@ pub(crate) type Str = beef::lean::Cow<'static, str>;
 ///   }
 /// }
 /// ```
-/// 
+///
 #[macro_export]
 macro_rules! prof {
     ($($tt:tt)*) => {
@@ -121,7 +121,7 @@ macro_rules! prof {
 /// Returns a guard that will profile as long as it's alive.
 ///
 /// This will be until the scope ends or is dropped manually.
-/// 
+///
 /// Supports the same syntax as [`prof!`];
 ///
 /// # Examples
