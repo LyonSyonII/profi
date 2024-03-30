@@ -17,12 +17,12 @@ keywords = [
 edition = "2021"
 
 [dependencies]
-profi-attributes = { path = "../profi-attributes", optional = true }            # Derive macros
-beef = { version = "0.5.2", optional = true }                                   # Slimmer alternative to std::borrow::Cow
-comfy-table = { version = "7.1.0", default-features = false, optional = true }  # Cli table creator
-indexmap = { version = "2.2.6", optional = true }                               # Map that supports accessing by insert order
-minstant = { version = "0.1.7", optional = true }                               # Faster alternative to std::time::Instant
-rayon = { version = "1.9.0", default-features = false, optional = true }        # For dropping the threads managed by rayon
+profi-attributes = { version = "0.1.0", path = "../profi-attributes", optional = true } # Derive macros
+beef = { version = "0.5.2", optional = true }                                           # Slimmer alternative to std::borrow::Cow
+comfy-table = { version = "7.1.0", default-features = false, optional = true }          # Cli table creator
+indexmap = { version = "2.2.6", optional = true }                                       # Map that supports accessing by insert order
+minstant = { version = "0.1.7", optional = true }                                       # Faster alternative to std::time::Instant
+rayon = { version = "1.9.0", default-features = false, optional = true }                # For dropping the threads managed by rayon
 
 [dev-dependencies]
 akin = "0.4.0"
