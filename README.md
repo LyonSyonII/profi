@@ -1,1 +1,1 @@
-./profi/README.md
+profi/README.md
