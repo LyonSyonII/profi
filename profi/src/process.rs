@@ -16,7 +16,7 @@ struct Timing {
     total_cpu: std::time::Duration,
     average: std::time::Duration,
     calls: usize,
-    thread: usize
+    thread: usize,
 }
 
 #[cfg(feature = "enable")]
@@ -44,12 +44,12 @@ impl Timing {
             total_cpu: sum,
             average,
             calls: timings.len(),
-            thread
+            thread,
         }
     }
-    fn merge(&mut self, other: &Timing) {
+    fn merge(&mut self, other: Timing) {
         if self.formatted_name.len() > other.formatted_name.len() {
-            self.formatted_name = other.formatted_name.clone();
+            self.formatted_name = other.formatted_name;
         }
         self.average = (self.average + other.average) / 2;
         self.calls += other.calls;
@@ -137,7 +137,7 @@ impl Node {
             depth,
         }
     }
-    
+
     fn to_timings(&self, name: Str, total: std::time::Duration, thread: usize) -> Vec<Timing> {
         let formatted_name = {
             // Add a padding equal to hierarchy depth
@@ -167,7 +167,7 @@ pub fn print_timings(
     mut to: impl std::io::Write,
 ) -> std::io::Result<()> {
     let mut total_app = std::time::Duration::ZERO;
-    
+
     let mut timings = indexmap::IndexMap::<crate::Str, Timing>::new();
 
     for (i, (_, measures)) in threads.iter().enumerate() {
@@ -178,16 +178,18 @@ pub fn print_timings(
             .flat_map(|(name, node)| node.to_timings(name.clone(), total_thread, i));
         for timing in thread {
             let name = {
-                #[cfg(feature = "deep-hierarchy")] {
+                #[cfg(feature = "deep-hierarchy")]
+                {
                     timing.formatted_name.clone()
                 }
-                #[cfg(not(feature = "deep-hierarchy"))] {
+                #[cfg(not(feature = "deep-hierarchy"))]
+                {
                     timing.name.clone()
                 }
             };
-            
+
             if let Some(other) = timings.get_mut(name.as_ref()) {
-                other.merge(&timing);
+                other.merge(timing);
             } else {
                 #[cfg(feature = "deep-hierarchy")]
                 timings.insert(name, timing);
@@ -200,11 +202,18 @@ pub fn print_timings(
     timings
         .iter_mut()
         .for_each(|(_, t)| t.update_percent(total_app, total_cpu));
-    
-    #[cfg(feature = "metaprof")] {
-        let total_average = timings.iter().map(|t| t.1.average).sum::<std::time::Duration>();
+
+    #[cfg(feature = "metaprof")]
+    {
+        let total_average = timings
+            .iter()
+            .map(|t| t.1.average)
+            .sum::<std::time::Duration>();
         let calls = timings.iter().map(|t| t.1.calls).sum::<usize>() as u32;
-        eprintln!("[profi] The average time per measure in your machine is: {:#?}", total_average / calls);
+        eprintln!(
+            "[profi] The average time per measure in your machine is: {:#?}",
+            total_average / calls
+        );
         writeln!(to, "\n\t\tTime/Measure: {:#?}\n", total_average / calls)?;
     }
     writeln!(to, "{}", create_table(timings.into_values()))
@@ -214,7 +223,6 @@ pub fn print_timings(
 fn into_tree(
     measures: &[crate::measure::Measure],
 ) -> (std::time::Duration, indexmap::IndexMap<Str, Node>) {
-
     fn get_current<'r>(
         current_path: &[usize],
         tree: &'r mut indexmap::IndexMap<Str, Node>,
@@ -253,7 +261,9 @@ fn into_tree(
                     current_path.push(idx);
                 } else {
                     // If not, create it
-                    current.children.insert(name.clone(), Node::new(current.depth + 1));
+                    current
+                        .children
+                        .insert(name.clone(), Node::new(current.depth + 1));
                     current_path.push(current.children.len() - 1);
                 }
             }
@@ -269,9 +279,12 @@ fn into_tree(
             }
         }
     }
-    
+
     // Get total app by adding all root nodes
-    let total_app = tree.iter().map(|n| n.1.measures.iter().sum::<std::time::Duration>()).sum();
-    
+    let total_app = tree
+        .iter()
+        .map(|n| n.1.measures.iter().sum::<std::time::Duration>())
+        .sum();
+
     (total_app, tree)
 }

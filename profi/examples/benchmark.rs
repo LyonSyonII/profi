@@ -1,9 +1,8 @@
 fn main() {
-
     // Run with 'cargo run --release --example benchmark --features metaprof > out'
-    
+
     profi::print_on_exit!();
-    
+
     // Benchmark how much time it takes for `prof!` to create and drop
     for _ in 0..100 {
         bench()
@@ -41,6 +40,7 @@ fn bench() {
 
     // High number of calls
     // 10..100_000
+    // akin is used to generate all loops at compile-time
     akin::akin! {
         let &iter = [10, 100, 1000, 10_000, 100_000];
         for _ in 0..*iter {
@@ -53,13 +53,14 @@ fn bench() {
         if depth > limit {
             return;
         }
-        
+
         profi::prof!("depth = {depth}");
         nest(depth + 1, limit);
     }
     nest(0, 1000);
 
     // Very large amount of leaves
+    // akin is used to generate all leaves at compile-time
     akin::akin! {
         let &i = 0..1000;
         let &block = {

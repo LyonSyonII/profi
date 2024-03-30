@@ -1,0 +1,24 @@
+[package]
+name = "profi-attributes"
+version = "0.1.0"
+description = "Procedural macro attributes for the profi crate"
+authors = ["Liam <liam@garriga.dev>"]
+repository = "https://github.com/lyonsyonii/profi"
+license = "MIT"
+readme = "../README.md"
+categories = ["development-tools"]
+keywords = [
+    "instrumentation",
+    "profiling",
+    "performance",
+    "multithreaded",
+    "scope",
+    "macro"
+]
+edition = "2021"
+
+[dependencies]
+proc-macro-crate = "3.1.0"
+
+[lib]
+proc-macro = true

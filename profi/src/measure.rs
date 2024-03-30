@@ -67,7 +67,7 @@ impl ThreadProfiler {
             thread_time: None,
         }
     }
-    
+
     pub(crate) fn push(&mut self, name: Str) {
         self.measures.push(Measure {
             time: minstant::Instant::ZERO,
@@ -77,14 +77,14 @@ impl ThreadProfiler {
         let measure = self.measures.last_mut().unwrap();
         measure.time = minstant::Instant::now();
     }
-    
+
     pub(crate) fn pop(&mut self, time: minstant::Instant) {
         self.measures.push(Measure {
             time,
             ty: MeasureType::End,
         })
     }
-    
+
     pub(crate) fn manual_drop(&mut self, main_thread: bool) {
         self.set_thread_time();
         let thread_time = self.get_thread_time();

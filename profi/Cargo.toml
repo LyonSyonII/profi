@@ -1,0 +1,51 @@
+[package]
+name = "profi"
+version = "0.1.0"
+description = "Scope-based single and multithreaded profiling"
+authors = ["Liam <liam@garriga.dev>"]
+repository = "https://github.com/lyonsyonii/profi"
+license = "MIT"
+readme = "../README.md"
+categories = ["development-tools"]
+keywords = [
+    "instrumentation",
+    "profiling",
+    "performance",
+    "multithreaded",
+    "scope",
+]
+edition = "2021"
+
+[dependencies]
+profi-attributes = { path = "../profi-attributes", optional = true }            # Derive macros
+beef = { version = "0.5.2", optional = true }                                   # Slimmer alternative to std::borrow::Cow
+comfy-table = { version = "7.1.0", default-features = false, optional = true }  # Cli table creator
+indexmap = { version = "2.2.6", optional = true }                               # Map that supports accessing by insert order
+minstant = { version = "0.1.7", optional = true }                               # Faster alternative to std::time::Instant
+rayon = { version = "1.9.0", default-features = false, optional = true }        # For dropping the threads managed by rayon
+
+[dev-dependencies]
+akin = "0.4.0"
+
+[profile.dev]
+debug = 0
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[features]
+default = ["enable"]
+attributes = ["dep:profi-attributes"]
+enable = [
+    "dep:comfy-table",
+    "dep:minstant",
+    "dep:beef",
+    "dep:indexmap",
+]                       # Enable measurements
+deep-hierarchy = []     # Do not merge entries with the same name
+metaprof = []           # Enable meta profiling (profiling of 'profi' methods)
+rayon = ["dep:rayon"]   # Enable rayon compatibility
+
+[[example]]
+name = "attribute"
+required-features = ["attributes"]

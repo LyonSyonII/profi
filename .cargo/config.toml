@@ -2,7 +2,7 @@
 codegen-backend = true
 
 [profile.dev]
-codegen-backend = "cranelift"
+codegen-backend = "llvm"
 
 [build]
 rustflags = ["-Clink-arg=-fuse-ld=mold", "-Zthreads=12", "-Ctarget-cpu=native"]

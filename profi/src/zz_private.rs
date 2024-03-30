@@ -72,10 +72,11 @@ fn drop_threads() {
     crate::measure::THREAD_PROFILER.with_borrow_mut(|t| {
         t.manual_drop(true);
 
-        #[cfg(feature = "rayon")] {
+        #[cfg(feature = "rayon")]
+        {
             // Drop threads manually, as `rayon` never drops them
             let current = std::thread::current().id();
-    
+
             rayon::broadcast(|t| {
                 if std::thread::current().id() != current {
                     crate::measure::THREAD_PROFILER.with_borrow_mut(|t| t.manual_drop(false))
