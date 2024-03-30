@@ -5,7 +5,7 @@ description = "Scope-based single and multithreaded profiling"
 authors = ["Liam <liam@garriga.dev>"]
 repository = "https://github.com/lyonsyonii/profi"
 license = "MIT"
-readme = "../README.md"
+readme = "README.md"
 categories = ["development-tools"]
 keywords = [
     "instrumentation",
