@@ -1,4 +1,4 @@
-#![doc = include_str!("../../README.md")]
+#![doc = include_str!("../README.md")]
 #![allow(clippy::needless_doctest_main)]
 #![cfg_attr(feature = "nightly", feature(const_type_name))]
 
