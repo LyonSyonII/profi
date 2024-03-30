@@ -26,5 +26,6 @@ opt-level = 3
 [features]
 default = ["enable"]
 enable = ["dep:comfy-table", "dep:minstant", "dep:beef"]    # Enable measurements
-rayon = ["dep:rayon"]                                           # Enable rayon compatibility
-metaprof = []                                                   # Enable meta profiling (profiling of 'profi' methods)
+rayon = ["dep:rayon"]                                       # Enable rayon compatibility
+deep-hierarchy = []                                         # Do not merge entries with the same name
+metaprof = []                                               # Enable meta profiling (profiling of 'profi' methods)

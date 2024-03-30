@@ -86,6 +86,7 @@ impl ThreadProfiler {
     }
     
     pub(crate) fn manual_drop(&mut self, main_thread: bool) {
+        self.set_thread_time();
         let thread_time = self.get_thread_time();
         let measures = std::mem::take(&mut self.measures);
         if !measures.is_empty() {

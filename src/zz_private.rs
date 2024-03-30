@@ -71,19 +71,18 @@ pub fn dbg_thread() {
 fn drop_threads() {
     crate::measure::THREAD_PROFILER.with_borrow_mut(|t| {
         t.manual_drop(true);
-    });
+
+        #[cfg(feature = "rayon")] {
+            // Drop threads manually, as `rayon` never drops them
+            let current = std::thread::current().id();
     
-    #[cfg(feature = "rayon")]
-    {
-        // Drop threads manually, as `rayon` never drops them
-        let current = std::thread::current().id();
-        
-        rayon::broadcast(|t| {
-            if std::thread::current().id() != current {
-                crate::THREAD_PROFILER.with_borrow_mut(|t| t.manual_drop(false))
-            }
-        });
-    }
+            rayon::broadcast(|t| {
+                if std::thread::current().id() != current {
+                    crate::measure::THREAD_PROFILER.with_borrow_mut(|t| t.manual_drop(false))
+                }
+            });
+        }
+    });
 }
 
 /// **Should not be used on its own, will be applied automatically with `print_on_exit!`.**

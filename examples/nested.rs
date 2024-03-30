@@ -1,6 +1,9 @@
 use profi::{print_on_exit, prof};
 
 fn main() {
+
+    // Try running with 'cargo run --release --example benchmark --features deep-hierarchy'
+    // for a look on how the feature works
     print_on_exit!();
 
     a();
