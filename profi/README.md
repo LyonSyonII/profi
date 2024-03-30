@@ -46,13 +46,7 @@ fn main() {
  std::thread::sleep(std::time::Duration::from_millis(200));
 }
 ```
-```plaintext
-┌──────────────┬────────────────────┬───────────┬──────────────┬───────┐
-│ Name         ┆ % Application Time ┆ Real Time ┆ Average time ┆ Calls │
-╞══════════════╪════════════════════╪═══════════╪══════════════╪═══════╡
-│ simple::main ┆ 100.00%            ┆ 200.13ms  ┆       -      ┆     1 │
-└──────────────┴────────────────────┴───────────┴──────────────┴───────┘
-```
+![codeimage-snippet_30](https://github.com/LyonSyonII/profi/assets/69039201/f6aaf5ad-7ae7-4371-aae5-753df3fdbfcd)
 
 ## Loops
 ```rust
@@ -67,15 +61,7 @@ fn main() {
   }
 }
 ```
-```plaintext
-┌────────────┬────────────────────┬───────────┬──────────────┬───────┐
-│ Name       ┆ % Application Time ┆ Real Time ┆ Average time ┆ Calls │
-╞════════════╪════════════════════╪═══════════╪══════════════╪═══════╡
-│ loop::main ┆ 100.00%            ┆ 1.01s     ┆       -      ┆     1 │
-├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
-│ iteration  ┆ 99.99%             ┆ 1.01s     ┆ 10.10ms/call ┆   100 │
-└────────────┴────────────────────┴───────────┴──────────────┴───────┘
-```
+![codeimage-snippet_31](https://github.com/LyonSyonII/profi/assets/69039201/e7ef500d-6a42-42ae-baf9-e87f35029b4c)
 
 ## Multiple threads
 ```rust
@@ -105,17 +91,9 @@ fn main() {
     });
 }
 ```
-```plaintext
-┌───────────────┬────────────────────┬───────────┬────────────┬──────────┬──────────────┬───────┐
-│ Name          ┆ % Application Time ┆ Real Time ┆ % CPU Time ┆ CPU Time ┆ Average time ┆ Calls │
-╞═══════════════╪════════════════════╪═══════════╪════════════╪══════════╪══════════════╪═══════╡
-│ threads::main ┆ 100.00%            ┆ 10.48ms   ┆ 9.43%      ┆ 10.48ms  ┆       -      ┆     1 │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
-│ 6 first       ┆ 96.42%             ┆ 10.11ms   ┆ 54.38%     ┆ 60.44ms  ┆ 10.08ms/call ┆     6 │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
-│ 4 last        ┆ 95.93%             ┆ 10.06ms   ┆ 36.19%     ┆ 40.22ms  ┆ 10.06ms/call ┆     4 │
-└───────────────┴────────────────────┴───────────┴────────────┴──────────┴──────────────┴───────┘
-```
+
+![codeimage-snippet_32](https://github.com/LyonSyonII/profi/assets/69039201/b1471e82-25c2-4c56-a9a0-9dd9a2b7d005)
+
 "CPU Time" is the combined time all threads have spent on that scope.  
 
 For example, "6 first" has a "CPU Time" of 60 milliseconds because each thread waits 10ms, and the program spawns six of them.
