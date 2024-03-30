@@ -65,7 +65,7 @@ impl Timing {
 }
 
 #[cfg(feature = "enable")]
-fn create_table(timings: impl IntoIterator<Item = Timing>) -> comfy_table::Table {
+fn create_table(timings: impl IntoIterator<Item = Timing>, threads: usize) -> comfy_table::Table {
     let mut table = comfy_table::Table::new();
     table.load_preset(comfy_table::presets::UTF8_FULL);
     table.set_header([
@@ -88,7 +88,7 @@ fn create_table(timings: impl IntoIterator<Item = Timing>) -> comfy_table::Table
         let name = cell(timing.formatted_name);
         let app_percent = cell(format!("{:.2}%", timing.percent_app));
         let real_time = cell(format!("{:.2?}", timing.total_real));
-        let (cpu_percent, cpu_time) = if timing.total_real == timing.total_cpu {
+        let (cpu_percent, cpu_time) = if threads <= 1 {
             (empty(), empty())
         } else {
             (
@@ -167,6 +167,7 @@ pub fn print_timings(
     mut to: impl std::io::Write,
 ) -> std::io::Result<()> {
     let mut total_app = std::time::Duration::ZERO;
+    let mut total_cpu = std::time::Duration::ZERO;
 
     let mut timings = indexmap::IndexMap::<crate::Str, Timing>::new();
 
@@ -177,6 +178,7 @@ pub fn print_timings(
             .iter()
             .flat_map(|(name, node)| node.to_timings(name.clone(), total_thread, i));
         for timing in thread {
+            total_cpu += timing.total_cpu;
             let name = {
                 #[cfg(feature = "deep-hierarchy")]
                 {
@@ -198,7 +200,6 @@ pub fn print_timings(
             }
         }
     }
-    let total_cpu = timings.iter().map(|(_, t)| t.total_cpu).sum();
     timings
         .iter_mut()
         .for_each(|(_, t)| t.update_percent(total_app, total_cpu));
@@ -216,7 +217,7 @@ pub fn print_timings(
         );
         writeln!(to, "\n\t\tTime/Measure: {:#?}\n", total_average / calls)?;
     }
-    writeln!(to, "{}", create_table(timings.into_values()))
+    writeln!(to, "{}", create_table(timings.into_values(), threads.len()))
 }
 
 #[cfg(feature = "enable")]

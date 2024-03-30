@@ -94,7 +94,7 @@ fn do_work(i: usize) {
 
 fn main() {
     print_on_exit!();
-
+    
     // Spawn 10 threads
     std::thread::scope(|s| {
         for i in 0..10 {
@@ -106,19 +106,19 @@ fn main() {
 }
 ```
 ```plaintext
-┌───────────┬────────────────────┬───────────┬────────────┬──────────┬──────────────┬───────┐
-│ Name      ┆ % Application Time ┆ Real Time ┆ % CPU Time ┆ CPU Time ┆ Average time ┆ Calls │
-╞═══════════╪════════════════════╪═══════════╪════════════╪══════════╪══════════════╪═══════╡
-│ main      ┆ 100.00%            ┆ 1.01s     ┆      -     ┆     -    ┆       -      ┆     1 │
-├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
-│  6 first  ┆ 99.98%             ┆ 1.01s     ┆ 54.55%     ┆ 6.04s    ┆ 10.08ms/call ┆   600 │
-├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
-│  4 last   ┆ 99.96%             ┆ 1.01s     ┆ 36.36%     ┆ 4.03s    ┆ 10.07ms/call ┆   400 │
-└───────────┴────────────────────┴───────────┴────────────┴──────────┴──────────────┴───────┘
+┌───────────────┬────────────────────┬───────────┬────────────┬──────────┬──────────────┬───────┐
+│ Name          ┆ % Application Time ┆ Real Time ┆ % CPU Time ┆ CPU Time ┆ Average time ┆ Calls │
+╞═══════════════╪════════════════════╪═══════════╪════════════╪══════════╪══════════════╪═══════╡
+│ threads::main ┆ 100.00%            ┆ 10.48ms   ┆ 9.43%      ┆ 10.48ms  ┆       -      ┆     1 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│ 6 first       ┆ 96.42%             ┆ 10.11ms   ┆ 54.38%     ┆ 60.44ms  ┆ 10.08ms/call ┆     6 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│ 4 last        ┆ 95.93%             ┆ 10.06ms   ┆ 36.19%     ┆ 40.22ms  ┆ 10.06ms/call ┆     4 │
+└───────────────┴────────────────────┴───────────┴────────────┴──────────┴──────────────┴───────┘
 ```
 "CPU Time" is the combined time all threads have spent on that scope.  
 
-For example, "6 first" has a "CPU Time" of 6 seconds because each thread waits 1 second, and the program spawns six of them.
+For example, "6 first" has a "CPU Time" of 60 milliseconds because each thread waits 10ms, and the program spawns six of them.
 
 ## Attribute
 Enable the `attributes` feature to use the `profile` attribute on functions.  
