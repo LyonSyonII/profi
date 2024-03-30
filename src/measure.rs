@@ -53,10 +53,6 @@ impl GlobalProfiler {
     }
 
     pub(crate) fn print_timings(&self, to: impl std::io::Write) -> std::io::Result<()> {
-        THREAD_PROFILER.with_borrow(|thread| {
-            thread.get_thread_time();
-        });
-
         crate::process::print_timings(self.measures.read().unwrap().as_slice(), to)
     }
 }
@@ -71,29 +67,32 @@ impl ThreadProfiler {
             thread_time: None,
         }
     }
-
-    pub(crate) fn push(&mut self, name: Str, time: minstant::Instant) {
+    
+    pub(crate) fn push(&mut self, name: Str) {
         self.measures.push(Measure {
-            time,
+            time: minstant::Instant::ZERO,
             ty: MeasureType::Start { name },
         });
+        // Do the measure as late as possible
+        let measure = self.measures.last_mut().unwrap();
+        measure.time = minstant::Instant::now();
     }
-
+    
     pub(crate) fn pop(&mut self, time: minstant::Instant) {
         self.measures.push(Measure {
             time,
             ty: MeasureType::End,
         })
     }
-
+    
     pub(crate) fn manual_drop(&mut self, main_thread: bool) {
-        self.set_thread_time();
+        let thread_time = self.get_thread_time();
         let measures = std::mem::take(&mut self.measures);
         if !measures.is_empty() {
             let mut lock = GLOBAL_PROFILER.measures.write().unwrap();
             if main_thread {
                 // Ensure the main thread is always first
-                lock.insert(0, (self.thread_time.unwrap(), measures));
+                lock.insert(0, (thread_time, measures));
             } else {
                 lock.push((self.thread_time.unwrap(), measures));
             }
@@ -106,13 +105,17 @@ impl ThreadProfiler {
     }
 
     pub(crate) fn set_thread_time(&mut self) {
-        self.thread_time.replace(self.thread_start.elapsed());
+        let elapsed = self.thread_start.elapsed();
+        if self.thread_time.is_none() {
+            self.thread_time.replace(elapsed);
+        }
     }
 
     pub(crate) fn get_thread_time(&self) -> std::time::Duration {
+        let elapsed = self.thread_start.elapsed();
         match self.thread_time {
             Some(t) => t,
-            None => self.thread_start.elapsed(),
+            None => elapsed,
         }
     }
 }

@@ -125,7 +125,6 @@ impl<'a> Node<'a> {
     }
 
     fn to_timings(&self, name: &str, total: std::time::Duration) -> Vec<Timing> {
-        #[cfg(feature = "hierarchy")]
         let name = {
             // Add a padding equal to hierarchy depth
             // If it's >= 20, add a numeric indicator and limit the padding
@@ -137,8 +136,6 @@ impl<'a> Node<'a> {
             };
             format!("{spaces}{name}")
         };
-        #[cfg(not(feature = "hierarchy"))]
-        let name = self.name.to_string();
         let timing = Timing::from_durations(name, &self.measures, total);
         std::iter::once(timing)
             .chain(
@@ -155,17 +152,14 @@ pub fn print_timings(
     threads: &[(std::time::Duration, Vec<crate::measure::Measure>)],
     mut to: impl std::io::Write,
 ) -> std::io::Result<()> {
-    let mut total_app = threads
-        .first()
-        .map(|(t, _)| t)
-        .unwrap_or_else(|| unreachable!("[profi] threads.len() < 1, this should not be possible"));
+    let mut total_app = std::time::Duration::ZERO;
     let mut timings: indexmap::IndexMap<crate::Str, Timing> = indexmap::IndexMap::new();
-    for (time, measures) in threads {
-        total_app = total_app.max(time);
-        let thread = into_tree(measures);
+    for (_, measures) in threads {
+        let (total_thread, thread) = into_tree(measures);
+        total_app = total_app.max(total_thread);
         let thread = thread
             .iter()
-            .flat_map(|(name, node)| node.to_timings(name, *time));
+            .flat_map(|(name, node)| node.to_timings(name, total_thread));
         for timing in thread {
             if let Some(other) = timings.get_mut(timing.name.as_ref()) {
                 other.merge(&timing);
@@ -177,14 +171,14 @@ pub fn print_timings(
     let total_cpu = timings.iter().map(|(_, t)| t.total_cpu).sum();
     timings
         .iter_mut()
-        .for_each(|(_, t)| t.update_percent(*total_app, total_cpu));
+        .for_each(|(_, t)| t.update_percent(total_app, total_cpu));
     write!(to, "{}", create_table(timings.into_values()))
 }
 
 #[cfg(feature = "enable")]
 fn into_tree<'node, 'm: 'node>(
     measures: &'m [crate::measure::Measure],
-) -> indexmap::IndexMap<&'m str, Node<'node>> {
+) -> (std::time::Duration, indexmap::IndexMap<&'m str, Node<'node>>) {
     fn get_current<'r, 'node>(
         current_path: &[usize],
         tree: &'r mut indexmap::IndexMap<&str, Node<'node>>,
@@ -240,6 +234,9 @@ fn into_tree<'node, 'm: 'node>(
             }
         }
     }
-
-    tree
+    
+    // Get total app by adding all root nodes
+    let total_app = tree.iter().map(|n| n.1.measures.iter().sum::<std::time::Duration>()).sum();
+    
+    (total_app, tree)
 }

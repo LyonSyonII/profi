@@ -15,10 +15,7 @@ impl ScopeGuard {
     #[allow(unused)]
     pub fn new(name: impl Into<Str>) -> Self {
         #[cfg(feature = "enable")]
-        {
-            let time = minstant::Instant::now();
-            crate::measure::THREAD_PROFILER.with_borrow_mut(|thread| thread.push(name.into(), time))
-        };
+        crate::measure::THREAD_PROFILER.with_borrow_mut(|thread| thread.push(name.into()));
         Self {}
     }
 }
@@ -27,6 +24,7 @@ impl Drop for ScopeGuard {
     fn drop(&mut self) {
         #[cfg(feature = "enable")]
         {
+            // Do the measure as early as possible
             let time = minstant::Instant::now();
             crate::measure::THREAD_PROFILER.with_borrow_mut(|thread| {
                 thread.pop(time);

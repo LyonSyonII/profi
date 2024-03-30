@@ -24,8 +24,7 @@ debug = 0
 opt-level = 3
 
 [features]
-default = ["enable", "hierarchy"]
+default = ["enable"]
 enable = ["dep:comfy-table", "dep:minstant", "dep:beef"]    # Enable measurements
 rayon = ["dep:rayon"]                                           # Enable rayon compatibility
-hierarchy = []                                                  # Show method hierarchy in table
 metaprof = []                                                   # Enable meta profiling (profiling of 'profi' methods)

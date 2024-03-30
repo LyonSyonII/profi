@@ -117,7 +117,6 @@
 //!
 //! # Features
 //! - `enable`: Activates the profiling, if not active all macros become no-ops.
-//! - `hierarchy`: Shows when a `prof!` is the child of another with a visual hierarchy.
 #![allow(clippy::needless_doctest_main)]
 
 mod measure;
