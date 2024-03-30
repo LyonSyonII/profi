@@ -5,7 +5,7 @@ A simple profiler for single and multithreaded applications.
 Record the time it takes for a scope to end and print the timings when the program exits.
 
 Each measurement has an overhead of ~25ns-50ns, so it shouldn't impact benchmarks.  
-Run the [benchmarks](https://github.com/LyonSyonII/profi/blob/main/examples/benchmark.rs) example to see what's the overhead on your machine.
+Run the [benchmarks](https://github.com/LyonSyonII/profi/blob/main/profi/examples/benchmark.rs) example to see what's the overhead on your machine.
 
 # Setup
 
@@ -29,7 +29,7 @@ And run it with `cargo run --release --features prof`
 
 # Usage
 
-See the [`examples`](https://github.com/LyonSyonII/profi/tree/main/examples) for more usage cases.
+See the [`examples`](https://github.com/LyonSyonII/profi/tree/main/profi/examples) for more usage cases.
 
 ## Basic Usage
 ```rust
@@ -133,10 +133,10 @@ fn anotated() { /* ... */ }
 
 # Features
 
-| Name             | Description                                                                                                                                                                            |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enable`         | Activates the profiling, if not active all macros become no-ops                                                                                                                        |
-| `attributes`     | Enables the `#[prof]` macro                                                                                                                                                            |
-| `deep-hierarchy` | By default `profi` merges all uses of a function, use this feature to disable this behaviour.<br/>See the [`nested` example for more information](https://github.com/lyonsyonii/profi) |
-| `nightly`        | Enables nightly-only optimizations                                                                                                                                                     |
-| `rayon`          | Necessary if using [`rayon`](https://crates.io/crates/rayon)                                                                                                                           |
+| Name             | Description                                                                                                                                                                                                     |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enable`         | Activates the profiling, if not active all macros become no-ops                                                                                                                                                 |
+| `attributes`     | Enables the `#[prof]` macro                                                                                                                                                                                     |
+| `deep-hierarchy` | By default `profi` merges all uses of a function, use this feature to disable this behaviour.<br/>See the [`nested` example for more information](https://github.com/LyonSyonII/profi/tree/main/profi/examples) |
+| `nightly`        | Enables nightly-only optimizations                                                                                                                                                                              |
+| `rayon`          | Necessary if using [`rayon`](https://crates.io/crates/rayon)                                                                                                                                                    |
