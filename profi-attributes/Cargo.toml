@@ -12,7 +12,6 @@ keywords = [
     "profiling",
     "performance",
     "multithreaded",
-    "scope",
     "macro"
 ]
 edition = "2021"
