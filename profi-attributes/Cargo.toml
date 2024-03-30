@@ -1,6 +1,6 @@
 [package]
 name = "profi-attributes"
-version = "0.1.1"
+version = "0.1.2"
 description = "Procedural macro attributes for the profi crate"
 authors = ["Liam <liam@garriga.dev>"]
 repository = "https://github.com/lyonsyonii/profi"

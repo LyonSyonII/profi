@@ -1,6 +1,6 @@
 [package]
 name = "profi"
-version = "0.1.1"
+version = "0.1.2"
 description = "Scope-based single and multithreaded profiling"
 authors = ["Liam <liam@garriga.dev>"]
 repository = "https://github.com/lyonsyonii/profi"
@@ -17,7 +17,7 @@ keywords = [
 edition = "2021"
 
 [dependencies]
-profi-attributes = { version = "0.1.1", path = "../profi-attributes", optional = true } # Derive macros
+profi-attributes = { version = "0.1.2", path = "../profi-attributes", optional = true } # Derive macros
 beef = { version = "0.5.2", optional = true }                                           # Slimmer alternative to std::borrow::Cow
 comfy-table = { version = "7.1.0", default-features = false, optional = true }          # Cli table creator
 indexmap = { version = "2.2.6", optional = true }                                       # Map that supports accessing by insert order
