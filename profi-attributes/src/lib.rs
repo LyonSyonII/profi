@@ -1,6 +1,5 @@
 use proc_macro::{TokenStream, TokenTree};
 
-#[doc(hidden)]
 #[proc_macro_attribute]
 pub fn profile(_: TokenStream, items: TokenStream) -> TokenStream {
     let mut items = items.into_iter().collect::<Vec<_>>();
@@ -38,7 +37,6 @@ pub fn profile(_: TokenStream, items: TokenStream) -> TokenStream {
     TokenStream::from_iter(items)
 }
 
-#[doc(hidden)]
 #[proc_macro_attribute]
 pub fn main(_: TokenStream, items: TokenStream) -> TokenStream {
     let mut items = items.into_iter().collect::<Vec<_>>();

@@ -1,6 +1,6 @@
 //! Contains all macro items, which should not be used by themselves.
 //!
-//! Always prefer the macros [`prof!`], [`prof_guard!`] and [`print_on_exit!`].
+//! Always prefer the macros [`prof!`](crate::prof), [`prof_guard!`](crate::prof_guard) and [`print_on_exit!`](crate::print_on_exit).
 
 #[cfg(feature = "enable")]
 use crate::Str;
@@ -90,7 +90,7 @@ fn drop_threads() {
 ///
 /// Blocks until all threads are dropped.
 ///
-/// Must be used on [`print_on_exit!`] because sometimes the threads will drop *after* the main one, corrupting the results.
+/// Must be used on [`print_on_exit!`](crate::print_on_exit) because sometimes the threads will drop *after* the main one, corrupting the results.
 #[cfg(feature = "enable")]
 fn block_until_exited() {
     // Wait for all threads to finish
@@ -104,7 +104,7 @@ fn block_until_exited() {
 
 /// Prints the profiled timings to stdout.
 ///
-/// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
+/// If profiling the `main` function, you can use [`print_on_exit!`](crate::print_on_exit) instead.
 ///
 /// It's recommended to only use it when all threads have exited and have been joined correctly, or you'll risk corrupt data.
 #[inline(always)]
@@ -115,7 +115,7 @@ pub fn print_timings() -> std::io::Result<()> {
 }
 /// Prints the profiled timings to stderr.
 ///
-/// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
+/// If profiling the `main` function, you can use [`print_on_exit!`](crate::print_on_exit) instead.
 ///
 /// It's recommended to only use it when all threads have exited and have been joined correctly, or you'll risk corrupt data.
 #[inline(always)]
@@ -126,7 +126,7 @@ pub fn eprint_timings() -> std::io::Result<()> {
 }
 /// Prints the profiled timings to the provided [`std::io::Write`].
 ///
-/// If profiling the `main` function, you can use [`print_on_exit!()`] instead.
+/// If profiling the `main` function, you can use [`print_on_exit!`](crate::print_on_exit) instead.
 ///
 /// It's recommended to only use it when all threads have exited and have been joined correctly, or you'll risk corrupt data.
 #[inline(always)]

@@ -47,6 +47,10 @@ metaprof = []           # Enable meta profiling (profiling of 'profi' methods)
 rayon = ["dep:rayon"]   # Enable rayon compatibility
 nightly = []            # Enables nightly-only optimizations
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [[example]]
 name = "attribute"
 required-features = ["attributes"]

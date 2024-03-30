@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(clippy::needless_doctest_main)]
-#![cfg_attr(feature = "nightly", feature(const_type_name))]
 
 mod measure;
 mod process;
