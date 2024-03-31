@@ -1,5 +1,8 @@
 # Profi
 
+[![Crates.io Version](https://img.shields.io/crates/v/profi)](https://crates.io/crates/profi)
+
+
 A simple profiler for single and multithreaded applications.
 
 Record the time it takes for a scope to end and print the timings when the program exits.
@@ -7,7 +10,7 @@ Record the time it takes for a scope to end and print the timings when the progr
 Each measurement has an overhead of ~25ns-50ns, so it shouldn't impact benchmarks.  
 Run the [benchmarks](https://github.com/LyonSyonII/profi/blob/main/profi/examples/benchmark.rs) example to see what's the overhead on your machine.
 
-# Setup
+## Setup
 
 `profi` is controlled by the `enable` feature, which is active by default.  
 When disabled, all macros and methods will become no-ops, resulting in zero impact on your code.
@@ -27,11 +30,11 @@ And run it with `cargo run --release --features prof`
 
 **If you use [`rayon`](https://crates.io/crates/rayon), enable the [`rayon` feature](#features)!**
 
-# Usage
+## Usage
 
 See the [`examples`](https://github.com/LyonSyonII/profi/tree/main/profi/examples) for more usage cases.
 
-## Basic Usage
+### Basic Usage
 ```rust
 use profi::{prof, print_on_exit};
 
@@ -48,7 +51,7 @@ fn main() {
 ```
 ![codeimage-snippet_30](https://github.com/LyonSyonII/profi/assets/69039201/f6aaf5ad-7ae7-4371-aae5-753df3fdbfcd)
 
-## Loops
+### Loops
 ```rust
 use profi::{prof, print_on_exit};
 
@@ -63,7 +66,7 @@ fn main() {
 ```
 ![codeimage-snippet_31](https://github.com/LyonSyonII/profi/assets/69039201/e7ef500d-6a42-42ae-baf9-e87f35029b4c)
 
-## Multiple threads
+### Multiple threads
 ```rust
 use profi::{print_on_exit, prof_guard};
 
@@ -98,7 +101,7 @@ fn main() {
 
 For example, "6 first" has a "CPU Time" of 60 milliseconds because each thread waits 10ms, and the program spawns six of them.
 
-## Attribute
+### Attribute
 Enable the `attributes` feature to use the `profile` attribute on functions.  
 This will add a guard at the start of the function.
 
@@ -109,7 +112,7 @@ use profi::profile;
 fn anotated() { /* ... */ }
 ```
 
-# Features
+## Features
 
 | Name             | Description                                                                                                                                                                                                     |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
