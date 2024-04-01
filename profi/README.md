@@ -23,7 +23,7 @@ For convenience, you can also add a custom feature:
 profi = { version = "*", default-features = false }
 
 [features]
-prof = ["profi/enable"]
+prof = ["profi/enable", "profi/attributes"]
 ```
 
 And run it with `cargo run --release --features prof`

@@ -36,6 +36,8 @@ pub use profi_attributes::profile;
 #[cfg(feature = "attributes")]
 pub use profi_attributes::main;
 
+pub use zz_private::Guard;
+
 /// Allows profiling the profiling methods
 #[allow(unused)]
 macro_rules! meta_prof {
