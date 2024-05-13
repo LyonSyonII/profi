@@ -8,7 +8,7 @@ fn main() {
     // If not (default), all calls will be merged into one
 
     print_on_exit!();
-
+    
     a();
     b();
     c();
