@@ -1,33 +1,48 @@
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 fn main() {
     profi::print_on_exit!();
-    const N: usize = 1_000_000;
+    
+    // Benchmark different implementations of adding up the numbers in a sequence.
+    // Collect the range in a Vec to avoid optimizations.
+    const N: usize = 1 << 32;
+    let range = (0..N).collect::<Vec<_>>();
+
     let result = {
-        profi::prof!("base-case");
-        std::hint::black_box(0..N).sum::<usize>() 
+        profi::prof!("sequential");
+        range.iter().sum::<usize>() 
     };
     
-    {
-        profi::prof!("atomic");
+    let reduction = true;
+    let sum = true;
+    let manual = true;
+
+    if reduction {
+        profi::prof!("rayon-reduction");
+        let sum: usize = range.par_iter().copied().reduce(|| 0, |a, b| a + b);
+        assert_eq!(sum, result);
+    }
+
+    if sum {
+        profi::prof!("rayon-sum");
+        let sum: usize = range.par_iter().sum();
+        assert_eq!(sum, result);
+    }
+
+    if manual {
+        profi::prof!("manual-blocks");
+        let num_threads: usize = std::thread::available_parallelism().unwrap().into();
         let sum = std::sync::atomic::AtomicUsize::new(0);
-        (0..N).into_par_iter().for_each(|i| {
-            sum.fetch_add(i, std::sync::atomic::Ordering::Relaxed);
+        std::thread::scope(|s| {
+            let sum = &sum;
+            for block in range.chunks(num_threads) {
+                s.spawn(move || {
+                    sum.fetch_add(block.iter().sum(), std::sync::atomic::Ordering::Relaxed);
+                });
+            }
         });
         assert_eq!(sum.into_inner(), result);
     }
-
-    {
-        profi::prof!("reduction");
-        let sum: usize = (0..N).into_par_iter().reduce(|| 0, |a, b| {
-            a + b 
-        });
-        assert_eq!(sum, result);
-    }
-
-    {
-        profi::prof!("sum");
-        let sum: usize = (0..N).into_par_iter().sum();
-        assert_eq!(sum, result);
-    }
+    
+    println!("{result}");
 }
