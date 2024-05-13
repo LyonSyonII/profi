@@ -120,6 +120,16 @@ macro_rules! prof {
     }
 }
 
+#[macro_export]
+macro_rules! prof_block {
+    ($($tt:tt)*) => {
+        {
+            let _guard = $crate::prof_guard!(stringify!($($tt)*));
+            $($tt)*
+        }
+    };
+}
+
 /// Returns a guard that will profile as long as it's alive.
 ///
 /// This will be until the scope ends or is dropped manually.
