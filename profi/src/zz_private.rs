@@ -55,8 +55,10 @@ pub struct Guard<T>(T);
 
 impl<T> Guard<T> {
     pub fn new(value: T, name: impl Into<Str>) -> Self {
-        #[cfg(feature = "enable")]
-        crate::measure::THREAD_PROFILER.with_borrow_mut(|thread| thread.push(name.into()));
+        #[cfg(feature = "enable")] {
+            let name = name.into();
+            crate::measure::local_with_borrow_mut(move |thread| thread.push(name.clone()));
+        }
         Self(value)
     }
 
@@ -77,7 +79,7 @@ impl<T> Guard<T> {
         {
             // Do the measure as early as possible
             let time = minstant::Instant::now();
-            crate::measure::THREAD_PROFILER.with_borrow_mut(|thread| {
+            crate::measure::local_with_borrow_mut(|thread| {
                 thread.pop(time);
             })
         }
@@ -154,22 +156,21 @@ where
 #[inline(always)]
 pub fn dbg_thread() {
     #[cfg(feature = "enable")]
-    crate::measure::THREAD_PROFILER.with_borrow(|t| println!("{t:#?}"));
+    crate::measure::local_with_borrow(|t| println!("{t:#?}"));
 }
 
 #[cfg(feature = "enable")]
 fn drop_threads() {
-    crate::measure::THREAD_PROFILER.with_borrow_mut(|t| {
+    crate::measure::local_with_borrow_mut(|t| {
         t.manual_drop(true);
 
         #[cfg(feature = "rayon")]
         {
             // Drop threads manually, as `rayon` never drops them
-            let current = std::thread::current().id();
-
+            let current = rayon::current_thread_index();
             rayon::broadcast(|t| {
-                if std::thread::current().id() != current {
-                    crate::measure::THREAD_PROFILER.with_borrow_mut(|t| t.manual_drop(false))
+                if Some(t.index()) != current {
+                    crate::measure::local_with_borrow_mut(|t| t.manual_drop(false))
                 }
             });
         }

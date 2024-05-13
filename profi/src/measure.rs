@@ -39,7 +39,7 @@ pub(crate) static GLOBAL_PROFILER: GlobalProfiler = GlobalProfiler::new();
 
 #[cfg(feature = "enable")]
 thread_local! {
-    pub(crate) static THREAD_PROFILER: RefCell<ThreadProfiler> = RefCell::new(ThreadProfiler::new());
+    pub(crate) static THREAD_PROFILER: std::cell::UnsafeCell<ThreadProfiler> = std::cell::UnsafeCell::new(ThreadProfiler::new());
 }
 
 #[cfg(feature = "enable")]
@@ -62,7 +62,7 @@ impl ThreadProfiler {
     pub(crate) fn new() -> Self {
         *GLOBAL_PROFILER.threads.lock().unwrap() += 1;
         Self {
-            measures: Vec::with_capacity(4096),
+            measures: Vec::with_capacity(8),
             thread_start: minstant::Instant::now(),
             thread_time: None,
         }
@@ -127,4 +127,18 @@ impl Drop for ThreadProfiler {
         #[cfg(not(feature = "rayon"))]
         self.manual_drop(false)
     }
+}
+
+pub(crate) fn local_with_borrow(f: impl Fn(&ThreadProfiler)) {
+    THREAD_PROFILER.with(|thread| {
+        let thread = unsafe { &*thread.get() };
+        f(thread)
+    });
+}
+
+pub(crate) fn local_with_borrow_mut(f: impl Fn(&mut ThreadProfiler)) {
+    THREAD_PROFILER.with(|thread| {
+        let thread = unsafe { &mut *thread.get() };
+        f(thread)
+    });
 }
