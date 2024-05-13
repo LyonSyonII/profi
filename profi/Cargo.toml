@@ -26,6 +26,7 @@ rayon = { version = "1.9.0", default-features = false, optional = true }        
 
 [dev-dependencies]
 akin = "0.4.0"
+spin_sleep = "1.2.0"    # More accurate sleeping
 
 [profile.dev]
 debug = 0
@@ -34,7 +35,7 @@ debug = 0
 opt-level = 3
 
 [features]
-default = ["enable", "attributes"]
+default = ["enable", "attributes", "rayon"]
 attributes = ["dep:profi-attributes"]
 enable = [
     "dep:comfy-table",
@@ -54,3 +55,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [[example]]
 name = "attribute"
 required-features = ["attributes"]
+
+[[example]]
+name = "rayon"
+required-features = ["rayon"]
